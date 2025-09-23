@@ -43,26 +43,26 @@ module.exports = {
 
       let finalPeriodId = 0;
 
-      if (year && month) {
-        // cari periode
-        const period = await Period.findOne({
-          where: { year, month, is_active: true }
-        });
+      // if (year && month) {
+      //   // cari periode
+      //   const period = await Period.findOne({
+      //     where: { year, month, is_active: true }
+      //   });
 
-        if (!period) {
-          return res.status(404).json({ message: "Periode tidak ditemukan" });
-        }
+      //   if (!period) {
+      //     return res.status(404).json({ message: "Periode tidak ditemukan" });
+      //   }
 
-        finalPeriodId = period.id;
-      }
+      //   finalPeriodId = period.id;
+      // }
 
       let data, total, totalPages;
       const limit = 10;
       const offset = (parseInt(page) - 1) * limit;
 
-      if (finalPeriodId) {
+      if (year && month) {
         const { count, rows } = await PendapatanLain.findAndCountAll({
-          where: { branch_id, period_id: finalPeriodId, is_active: true },
+          where: { branch_id, year, month, is_active: true },
           order: [["created_at", "DESC"]],
           limit,
           offset

@@ -41,25 +41,25 @@ module.exports = {
       let finalPeriodId = 0;
 
       // Kalau tidak ada period_id tapi ada year & month, cari di Periods
-      if (year && month) {
-        const period = await Period.findOne({
-          where: { year, month, is_active: true }
-        });
+      // if (year && month) {
+      //   const period = await Period.findOne({
+      //     where: { year, month, is_active: true }
+      //   });
 
-        if (!period) {
-          return res.status(404).json({ message: "Periode tidak ditemukan" });
-        }
+      //   if (!period) {
+      //     return res.status(404).json({ message: "Periode tidak ditemukan" });
+      //   }
 
-        finalPeriodId = period.id;
-      }
+      //   finalPeriodId = period.id;
+      // }
 
       let data, total, totalPages;
       const limit = 10;
       const offset = (parseInt(page) - 1) * limit;
 
-      if (finalPeriodId) {
+      if (year && month) {
         const { count, rows } = await Penjualan.findAndCountAll({
-          where: { branch_id, period_id: finalPeriodId, is_active: true },
+          where: { branch_id, year, month, is_active: true },
           order: [["created_at", "DESC"]],
           limit,
           offset
