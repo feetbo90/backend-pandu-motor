@@ -17,6 +17,8 @@ const sirkulasiStockRoutes = require("./routes/sirkulasiStockRoutes");
 const barangPkRoutes = require("./routes/barangPkRoutes");
 const bebanRoutes = require("./routes/bebanRoutes");
 const sumberDayaRoutes = require("./routes/sumberDayaRoutes");
+const labaRugiController = require("./routes/labaRugiRoutes");
+const kasKeuanganRoutes = require("./routes/kasKeuanganRoutes");
 // const pembiayaanRoutes = require("./routes/pembiayaanRoutes"); --- IGNORE ---
 const app = express();
 app.use(bodyParser.json());
@@ -40,6 +42,8 @@ app.use("/api/sirkulasi-stock", sirkulasiStockRoutes);
 app.use("/api/barang-pk", barangPkRoutes);
 app.use("/api/beban", bebanRoutes);
 app.use("/api/sumber-daya", sumberDayaRoutes);
+app.use("/api/laba-rugi", labaRugiController);
+app.use("/api/kas-keuangan", kasKeuanganRoutes);
 // app.use("/api/pembiayaan", pembiayaanRoutes); --- IGNORE ---
 // jalankan server setelah DB connect
 sequelize.authenticate()

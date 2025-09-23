@@ -113,5 +113,44 @@ module.exports = {
       });
     }
   },
-// ...existing code...
+  // PUT /api/beban/:id/update-fields
+  async updateFields(req, res) {
+    try {
+      const { penyusutan_aktiva, cadangan_stock, total } = req.body;
+      const id = req.params.id;
+
+      const beban = await Beban.findByPk(id);
+      if (!beban) {
+        return res.status(404).json({ message: "Data beban tidak ditemukan" });
+      }
+
+      // Hitung total baru
+      // const total =
+      //   (beban.gaji || 0) +
+      //   (beban.admin || 0) +
+      //   (beban.operasional || 0) +
+      //   (beban.beban_umum_operasional || 0) +
+      //   (penyusutan_aktiva || 0) +
+      //   (beban.cadangan_piutang || 0) +
+      //   (cadangan_stock || 0);
+
+      await beban.update({
+        penyusutan_aktiva: penyusutan_aktiva || beban.penyusutan_aktiva,
+        cadangan_stock: cadangan_stock || beban.cadangan_stock,
+        total,
+        updated_at: new Date(),
+        version: beban.version + 1
+      });
+
+      res.json({
+        message: "Data beban berhasil diupdate",
+        data: beban
+      });
+    } catch (err) {
+      res.status(500).json({
+        message: "Terjadi kesalahan",
+        error: err.message
+      });
+    }
+  },
 };

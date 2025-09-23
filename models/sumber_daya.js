@@ -17,12 +17,21 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.BIGINT,
         allowNull: false
       },
+      year: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+      },
+      month: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+      },
       jumlah_karyawan: { type: DataTypes.INTEGER, defaultValue: 0 },
       formasi_tenaga: { type: DataTypes.STRING, allowNull: true },
       pimpinan: { type: DataTypes.INTEGER, defaultValue: 0 },
       kasir: { type: DataTypes.INTEGER, defaultValue: 0 },
       administrasi: { type: DataTypes.INTEGER, defaultValue: 0 },
       pdl: { type: DataTypes.INTEGER, defaultValue: 0 },
+      
       kontrak_kantor: { type: DataTypes.INTEGER, defaultValue: 0 },
       inventaris_mobil: { type: DataTypes.INTEGER, defaultValue: 0 },
       inventaris_mobil_ket: { type: DataTypes.STRING, allowNull: true },

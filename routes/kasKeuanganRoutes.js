@@ -1,9 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const controller = require("../controllers/transaction/sumberDayaController");
+const controller = require("../controllers/transaction/kasKeuanganController");
 
 router.post("/", controller.create);
 router.get("/", controller.getAll);
-router.put('/sumber-daya/:id', controller.update);
 
 module.exports = router;

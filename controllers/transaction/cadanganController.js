@@ -1,7 +1,7 @@
-const { SumberDaya, Period } = require("../../models");
+const { Cadangan, Period } = require("../../models");
 
 module.exports = {
-  // POST /api/sumber-daya
+  // POST /api/cadangan
   async create(req, res) {
     try {
       const { branch_id, period_id, year, month, ...rest } = req.body;
@@ -10,7 +10,7 @@ module.exports = {
         return res.status(400).json({ message: "branch_id dan period_id wajib diisi" });
       }
 
-      const data = await SumberDaya.create({
+      const data = await Cadangan.create({
         branch_id,
         period_id,
         year,
@@ -23,7 +23,7 @@ module.exports = {
       });
 
       res.status(201).json({
-        message: "Data sumber daya berhasil ditambahkan",
+        message: "Data cadangan berhasil ditambahkan",
         data
       });
     } catch (err) {
@@ -34,7 +34,7 @@ module.exports = {
     }
   },
 
-  // GET /api/sumber-daya?branch_id=1&year=2025&month=6
+  // GET /api/cadangan?branch_id=1&year=2025&month=6
   async getAll(req, res) {
     try {
       const { branch_id, year, month, page = 1 } = req.query;
@@ -43,12 +43,24 @@ module.exports = {
         return res.status(400).json({ message: "branch_id wajib diisi" });
       }
 
+      let finalPeriodId = 0;
+
+    //   if (year && month) {
+    //     const period = await Period.findOne({
+    //       where: { year, month, is_active: true }
+    //     });
+
+    //     if (period) {
+    //       finalPeriodId = period.id;
+    //     }
+    //   }
+
       let data, total, totalPages;
       const limit = 10;
       const offset = (parseInt(page) - 1) * limit;
 
       if (year && month) {
-        const { count, rows } = await SumberDaya.findAndCountAll({
+        const { count, rows } = await Cadangan.findAndCountAll({
           where: { branch_id, year, month, is_active: true },
           order: [["created_at", "DESC"]],
           limit,
@@ -58,7 +70,7 @@ module.exports = {
         total = count;
         totalPages = Math.ceil(count / limit);
       } else {
-        const { count, rows } = await SumberDaya.findAndCountAll({
+        const { count, rows } = await Cadangan.findAndCountAll({
           where: { branch_id, is_active: true },
           order: [["created_at", "DESC"]],
           limit,
@@ -70,7 +82,8 @@ module.exports = {
       }
 
       res.status(200).json({
-        message: "Data sumber daya berhasil diambil",
+        message: "Data cadangan berhasil diambil",
+        period_id: finalPeriodId || null,
         data,
         total,
         totalPages,
@@ -82,36 +95,5 @@ module.exports = {
         error: err.message
       });
     }
-  },
-  // PUT /api/sumber-daya/:id
-  async update(req, res) {
-    try {
-      const id = req.params.id;
-      const { branch_id, year, month, ...rest } = req.body;
-
-      const sumberDaya = await SumberDaya.findByPk(id);
-      if (!sumberDaya) {
-        return res.status(404).json({ message: "Data sumber daya tidak ditemukan" });
-      }
-
-      await sumberDaya.update({
-        branch_id: branch_id || sumberDaya.branch_id,
-        year: year || sumberDaya.year,
-        month: month || sumberDaya.month,
-        ...rest,
-        updated_at: new Date(),
-        version: sumberDaya.version + 1
-      });
-
-      res.json({
-        message: "Data sumber daya berhasil diupdate",
-        data: sumberDaya
-      });
-    } catch (err) {
-      res.status(500).json({
-        message: "Terjadi kesalahan",
-        error: err.message
-      });
-    }
-  },
+  }
 };
