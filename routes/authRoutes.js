@@ -35,7 +35,7 @@ const authController = require("../controllers/auth/authController");
  *     responses:
  *       201:
  *         description: User berhasil diregistrasi
- *       400:
+ *       400:a
  *         description: Data tidak valid atau email sudah terdaftar
  *       500:
  *         description: Server error
