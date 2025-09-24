@@ -20,6 +20,27 @@ const sumberDayaRoutes = require("./routes/sumberDayaRoutes");
 const labaRugiController = require("./routes/labaRugiRoutes");
 const kasKeuanganRoutes = require("./routes/kasKeuanganRoutes");
 // const pembiayaanRoutes = require("./routes/pembiayaanRoutes"); --- IGNORE ---
+
+const swaggerJSDoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
+
+const options = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "Pandu Motor Clean API",
+      version: "1.0.0",
+      description: "Dokumentasi API untuk backend Pandu Motor Clean"
+    },
+    servers: [
+      { url: "http://localhost:3000/api" }
+    ]
+  },
+  apis: ["./routes/*.js"], // path ke file route Anda
+};
+
+const swaggerSpec = swaggerJSDoc(options);
+
 const app = express();
 app.use(bodyParser.json());
 
@@ -45,6 +66,9 @@ app.use("/api/sumber-daya", sumberDayaRoutes);
 app.use("/api/laba-rugi", labaRugiController);
 app.use("/api/kas-keuangan", kasKeuanganRoutes);
 // app.use("/api/pembiayaan", pembiayaanRoutes); --- IGNORE ---
+
+// Endpoint untuk docs
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 // jalankan server setelah DB connect
 sequelize.authenticate()
   .then(() => {
