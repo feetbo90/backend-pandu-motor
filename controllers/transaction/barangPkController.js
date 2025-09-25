@@ -103,4 +103,16 @@ module.exports = {
       });
     }
   },
+    async remove(req, res) {
+    try {
+      const data = await BarangPk.findByPk(req.params.id);
+      if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
+
+      await data.destroy();
+
+      res.json({ message: "Data Barang berhasil dihapus" });
+    } catch (err) {
+      res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
+    }
+  }
 };

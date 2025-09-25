@@ -79,5 +79,6 @@ const authMiddleware = require("../middlewares/authMiddleware");
 // Routes
 router.get("/", authMiddleware, cadanganController.getAll);
 router.post("/", authMiddleware, cadanganController.create);
+router.delete("/:id", authMiddleware, cadanganController.remove);
 
 module.exports = router;

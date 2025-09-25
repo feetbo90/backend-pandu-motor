@@ -121,5 +121,6 @@ const authMiddleware = require("../middlewares/authMiddleware");
 router.post("/", authMiddleware, controller.create);
 router.get("/", authMiddleware, controller.getAll);
 router.put('/beban/:id/update-fields', authMiddleware,controller.updateFields);
+router.delete("/:id", authMiddleware, controller.remove);
 
 module.exports = router;

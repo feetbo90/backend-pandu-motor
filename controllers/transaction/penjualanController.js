@@ -30,6 +30,18 @@ module.exports = {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }
   },
+    async remove(req, res) {
+    try {
+      const data = await Penjualan.findByPk(req.params.id);
+      if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
+
+      await data.destroy();
+
+      res.json({ message: "Data penjualan berhasil dihapus" });
+    } catch (err) {
+      res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
+    }
+  },
 
   // GET /api/penjualan?branch_id=1&period_id=5
   async getAll(req, res) {

@@ -153,4 +153,16 @@ module.exports = {
       });
     }
   },
+  async remove(req, res) {
+    try {
+      const data = await Beban.findByPk(req.params.id);
+      if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
+
+      await data.destroy();
+
+      res.json({ message: "Data beban berhasil dihapus (soft delete)" });
+    } catch (err) {
+      res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
+    }
+  }
 };

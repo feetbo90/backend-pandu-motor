@@ -155,5 +155,6 @@ const authMiddleware = require("../middlewares/authMiddleware");
 router.post("/", authMiddleware, controller.create);
 router.get("/", authMiddleware, controller.getAll);
 router.put('/sumber-daya/:id', authMiddleware, controller.update);
+router.delete("/:id", authMiddleware, controller.remove);
 
 module.exports = router;

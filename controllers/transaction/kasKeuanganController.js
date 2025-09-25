@@ -82,5 +82,18 @@ module.exports = {
         error: err.message
       });
     }
+  },
+    async remove(req, res) {
+    try {
+      const data = await KasKeuangan.findByPk(req.params.id);
+      if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
+
+      await data.destroy();
+
+      res.json({ message: "Data Kas Keuangan berhasil dihapus" });
+    } catch (err) {
+      res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
+    }
   }
 };
+      
