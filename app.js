@@ -1,5 +1,6 @@
 const express = require("express");
 const bodyParser = require("body-parser");
+const cors = require("cors");
 const { sequelize } = require("./models");
 
 const PORT = process.env.PORT || 3000;
@@ -42,6 +43,7 @@ const options = {
 const swaggerSpec = swaggerJSDoc(options);
 
 const app = express();
+app.use(cors());
 app.use(bodyParser.json());
 
 // test endpoint
