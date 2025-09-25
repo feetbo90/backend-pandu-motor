@@ -116,5 +116,14 @@ module.exports = {
     } catch (err) {
       return res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }
+  },
+  // Logout
+  async logout(req, res) {
+    try {
+      // kalau mau, kamu bisa blacklist token disini (pakai Redis / DB)
+      return res.status(200).json({ message: "Logout berhasil" });
+    } catch (err) {
+      return res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
+    }
   }
 };
