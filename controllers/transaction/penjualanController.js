@@ -4,7 +4,7 @@ module.exports = {
   // POST /api/penjualan
   async create(req, res) {
     try {
-      const { branch_id, period_id, kontan, kredit, leasing, jumlah } = req.body;
+      const { branch_id, period_id, kontan, kredit, leasing, jumlah, year, month } = req.body;
 
       if (!branch_id || !period_id) {
         return res.status(400).json({ message: "branch_id dan period_id wajib diisi" });
@@ -19,6 +19,8 @@ module.exports = {
         jumlah: jumlah || 0,
         created_at: new Date(),
         updated_at: new Date(),
+        year,
+        month,
         version: 1,
         is_active: true
       });
