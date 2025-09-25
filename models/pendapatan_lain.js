@@ -17,6 +17,8 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.BIGINT,
         allowNull: false
       },
+      year: { type: DataTypes.INTEGER },
+      month: { type: DataTypes.INTEGER },
       penjualan_pk: { type: DataTypes.BIGINT, defaultValue: 0 },
       komisi: { type: DataTypes.BIGINT, defaultValue: 0 },
       denda_keterlambatan: { type: DataTypes.BIGINT, defaultValue: 0 },

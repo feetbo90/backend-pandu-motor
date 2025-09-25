@@ -17,6 +17,8 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.BIGINT,
         allowNull: false
       },
+      year: { type: DataTypes.INTEGER },
+      month: { type: DataTypes.INTEGER },
       saldo_awal: { type: DataTypes.BIGINT, defaultValue: 0 },
       tambahan: { type: DataTypes.BIGINT, defaultValue: 0 },
       realisasi_pokok: { type: DataTypes.BIGINT, defaultValue: 0 },
