@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/transaction/sumberDayaController");
+const authMiddleware = require("../middlewares/authMiddleware");
 
 /**
  * @swagger
@@ -151,8 +152,8 @@ const controller = require("../controllers/transaction/sumberDayaController");
  *       500:
  *         description: Server error
  */
-router.post("/", controller.create);
-router.get("/", controller.getAll);
-router.put('/sumber-daya/:id', controller.update);
+router.post("/", authMiddleware, controller.create);
+router.get("/", authMiddleware, controller.getAll);
+router.put('/sumber-daya/:id', authMiddleware, controller.update);
 
 module.exports = router;

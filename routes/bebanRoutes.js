@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/transaction/bebanController");
+const authMiddleware = require("../middlewares/authMiddleware");
 
 /**
  * @swagger
@@ -117,8 +118,8 @@ const controller = require("../controllers/transaction/bebanController");
  *       500:
  *         description: Server error
  */
-router.post("/", controller.create);
-router.get("/", controller.getAll);
-router.put('/beban/:id/update-fields', controller.updateFields);
+router.post("/", authMiddleware, controller.create);
+router.get("/", authMiddleware, controller.getAll);
+router.put('/beban/:id/update-fields', authMiddleware,controller.updateFields);
 
 module.exports = router;

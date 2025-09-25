@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const cadanganController = require("../controllers/transaction/cadanganController");
+const authMiddleware = require("../middlewares/authMiddleware");
 
 /**
  * @swagger
@@ -76,7 +77,7 @@ const cadanganController = require("../controllers/transaction/cadanganControlle
  */
 
 // Routes
-router.get("/", cadanganController.getAll);
-router.post("/", cadanganController.create);
+router.get("/", authMiddleware, cadanganController.getAll);
+router.post("/", authMiddleware, cadanganController.create);
 
 module.exports = router;

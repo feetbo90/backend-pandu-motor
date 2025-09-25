@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const entityController = require("../controllers/master/entityController");
+const authMiddleware = require("../middlewares/authMiddleware");
+
 /**
  * @swagger
  * /entities:
@@ -132,11 +134,11 @@ const entityController = require("../controllers/master/entityController");
  *         description: Server error
  */
 // CRUD
-router.get("/", entityController.getAll);
-router.get("/:id", entityController.getById);
-router.post("/", entityController.create);
-router.put("/:id", entityController.update);
-router.delete("/:id", entityController.remove);
-router.delete("/", entityController.removeAll);
+router.get("/", authMiddleware, entityController.getAll);
+router.get("/:id", authMiddleware, entityController.getById);
+router.post("/", authMiddleware, entityController.create);
+router.put("/:id", authMiddleware, entityController.update);
+router.delete("/:id", authMiddleware, entityController.remove);
+router.delete("/", authMiddleware, entityController.removeAll);
 
 module.exports = router;

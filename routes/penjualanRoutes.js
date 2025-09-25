@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/transaction/penjualanController");
+const authMiddleware = require("../middlewares/authMiddleware");
 
 /**
  * @swagger
@@ -76,7 +77,7 @@ const controller = require("../controllers/transaction/penjualanController");
  *       500:
  *         description: Server error
  */
-router.post("/", controller.create);
-router.get("/", controller.getAll);
+router.post("/", authMiddleware, controller.create);
+router.get("/", authMiddleware, controller.getAll);
 
 module.exports = router;

@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/transaction/pendapatanLainController");
+const authMiddleware = require("../middlewares/authMiddleware");
 
 /**
  * @swagger
@@ -71,7 +72,7 @@ const controller = require("../controllers/transaction/pendapatanLainController"
  *       500:
  *         description: Server error
  */
-router.post("/", controller.create);
-router.post("/by-period", controller.getByPeriod);
+router.post("/", authMiddleware, controller.create);
+router.post("/by-period", authMiddleware, controller.getByPeriod);
 
 module.exports = router;
