@@ -89,12 +89,12 @@ module.exports = {
   // Refresh token
   async refreshToken(req, res) {
     try {
-      const { refreshToken } = req.body;
-      if (!refreshToken) {
+      const { refresh_token } = req.body;
+      if (!refresh_token) {
         return res.status(400).json({ message: "Refresh token wajib diisi" });
       }
 
-      jwt.verify(refreshToken, JWT_REFRESH_SECRET, (err, user) => {
+      jwt.verify(refresh_token, JWT_REFRESH_SECRET, (err, user) => {
         if (err) {
           return res.status(403).json({ message: "Refresh token tidak valid" });
         }
