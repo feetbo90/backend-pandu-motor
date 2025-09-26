@@ -80,15 +80,25 @@ module.exports = {
   // POST /api/pendapatan
   async create(req, res) {
     try {
-      const { branch_id, period_id, ...rest } = req.body;
+      const { branch_id, ...rest } = req.body;
 
-      if (!branch_id || !period_id) {
+      if (!branch_id) {
         return res.status(400).json({ message: "branch_id dan period_id wajib diisi" });
+      }
+
+      const existing = await Pendapatan.findOne({
+        where: { branch_id, year, month, is_active: true }
+      });
+
+      if (existing) {
+        return res.status(400).json({
+          message: `Data pendapatan untuk tahun ${year} dan bulan ${month} sudah tersedia`
+        });
       }
 
       const data = await Pendapatan.create({
         branch_id,
-        period_id,
+        period_id: 1,
         ...rest,
         created_at: new Date(),
         updated_at: new Date(),
