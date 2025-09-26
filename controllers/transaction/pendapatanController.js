@@ -1,4 +1,5 @@
 const { Pendapatan, Period } = require("../../models");
+const { upsertPendapatan } = require("../../services/pendapatanService");
 
 module.exports = {
   // GET /api/pendapatan
@@ -129,6 +130,23 @@ module.exports = {
 
       res.json({ message: "Data pendapatan berhasil dihapus (soft delete)" });
     } catch (err) {
+      res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
+    }
+  },
+  async bulkUpsert(req, res) {
+    try {
+      // Ambil array dari key "pendapatan"
+      const records = req.body.pendapatan;
+
+      if (!Array.isArray(records) || records.length === 0) {
+        return res.status(400).json({ message: "Data pendapatan kosong atau tidak valid" });
+      }
+
+      await upsertPendapatan(records);
+
+      res.json({ message: "Data pendapatan berhasil disimpan / diupdate" });
+    } catch (err) {
+      console.error(err);
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }
   }

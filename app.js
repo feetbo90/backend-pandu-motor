@@ -21,6 +21,7 @@ const sumberDayaRoutes = require("./routes/sumberDayaRoutes");
 const labaRugiRoutes = require("./routes/labaRugiRoutes");
 const kasKeuanganRoutes = require("./routes/kasKeuanganRoutes");
 const cadanganRoutes = require("./routes/cadanganRoutes");
+const exportPendapatan = require("./routes/exportRoutes");
 // const pembiayaanRoutes = require("./routes/pembiayaanRoutes"); --- IGNORE ---
 
 const swaggerJSDoc = require('swagger-jsdoc');
@@ -69,6 +70,7 @@ app.use("/api/sumber-daya", sumberDayaRoutes);
 app.use("/api/laba-rugi", labaRugiRoutes);
 app.use("/api/kas-keuangan", kasKeuanganRoutes);
 app.use("/api/cadangan", cadanganRoutes);
+app.use("/api", exportPendapatan);
 // app.use("/api/pembiayaan", pembiayaanRoutes); --- IGNORE ---
 
 // Endpoint untuk docs
