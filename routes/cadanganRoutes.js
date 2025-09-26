@@ -80,6 +80,6 @@ const authMiddleware = require("../middlewares/authMiddleware");
 router.get("/", authMiddleware, cadanganController.getAll);
 router.post("/", authMiddleware, cadanganController.create);
 router.delete("/:id", authMiddleware, cadanganController.remove);
-router.put("/:id", authMiddleware, controller.update);
+router.put("/:id", authMiddleware, cadanganController.update);
 
 module.exports = router;
