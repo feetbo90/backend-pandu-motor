@@ -1,5 +1,6 @@
 const { Pendapatan, Period } = require("../../models");
 const { upsertPendapatan } = require("../../services/pendapatanService");
+const fs = require("fs");
 
 module.exports = {
   // GET /api/pendapatan
@@ -145,8 +146,15 @@ module.exports = {
   },
   async bulkUpsert(req, res) {
     try {
+      if (!req.file) {
+        return res.status(400).json({ message: "File JSON wajib diupload" });
+      }
+
+      // Baca isi file JSON
+      const rawData = fs.readFileSync(req.file.path, "utf-8");
+      const jsonData = JSON.parse(rawData);
       // Ambil array dari key "pendapatan"
-      const records = req.body.pendapatan;
+      const records = jsonData.pendapatan;
 
       if (!Array.isArray(records) || records.length === 0) {
         return res.status(400).json({ message: "Data pendapatan kosong atau tidak valid" });

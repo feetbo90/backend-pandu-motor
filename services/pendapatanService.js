@@ -18,7 +18,7 @@ async function upsertPendapatan(records) {
         :jumlah_pendapatan, :version, :is_active,
         NOW(), NOW()
       )
-      ON CONFLICT (branch_id, period_id, year, month)
+      ON CONFLICT (branch_id, year, month)
       DO UPDATE SET
         markup_kontan      = EXCLUDED.markup_kontan,
         markup_kredit      = EXCLUDED.markup_kredit,
