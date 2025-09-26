@@ -113,5 +113,38 @@ module.exports = {
     } catch (err) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }
+  },
+  async update(req, res) {
+    try {
+      const { id } = req.params;
+      const { branch_id, year, month, ...rest } = req.body;
+
+      if (!branch_id) {
+        return res.status(400).json({ message: "branch_id wajib diisi" });
+      }
+
+      const data = await SirkulasiPiutang.findByPk(id);
+      if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
+
+      await data.update({
+        branch_id,
+        period_id: 1,
+        year,
+        month,
+        ...rest,
+        updated_at: new Date(),
+        version: data.version + 1
+      });
+
+      res.status(200).json({
+        message: "Data sirkulasi piutang berhasil diperbarui",
+        data
+      });
+    } catch (err) {
+      res.status(500).json({
+        message: "Terjadi kesalahan",
+        error: err.message
+      });
+    }
   }
 };

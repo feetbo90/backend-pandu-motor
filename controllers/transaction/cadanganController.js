@@ -107,5 +107,22 @@ module.exports = {
     } catch (err) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }
+  },
+  
+  async update(req, res) {
+    try {
+      const data = await Cadangan.findByPk(req.params.id);
+      if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
+
+      await data.update({
+        ...req.body,
+        updated_at: new Date(),
+        version: data.version + 1
+      });
+
+      res.json({ message: "Data cadangan berhasil diperbarui", data });
+    } catch (err) {
+      res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
+    }
   }
 };

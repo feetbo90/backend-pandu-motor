@@ -114,5 +114,22 @@ module.exports = {
     } catch (err) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }
-  }
+  },
+    // PUT /api/barangpk/:id
+  async update(req, res) {
+    try {
+      const data = await BarangPk.findByPk(req.params.id);
+      if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
+
+      await data.update({
+        ...req.body,
+        updated_at: new Date(),
+        version: data.version + 1
+      });
+
+      res.json({ message: "Data barang_pk berhasil diperbarui", data });
+    } catch (err) {
+      res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
+    }
+  },
 };

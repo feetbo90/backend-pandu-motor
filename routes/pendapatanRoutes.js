@@ -76,4 +76,6 @@ router.post("/", authMiddleware, controller.create);
 router.get("/", authMiddleware, controller.getAll);
 router.delete("/:id", authMiddleware, controller.remove);
 router.post("/bulk-upsert", authMiddleware, controller.bulkUpsert);
+router.put("/:id", authMiddleware, controller.update);
+
 module.exports = router;

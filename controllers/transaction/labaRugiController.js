@@ -101,8 +101,7 @@ module.exports = {
         error: err.message
       });
     }
-  }
-  ,
+  },
     async remove(req, res) {
     try {
       const data = await LabaRugi.findByPk(req.params.id);
@@ -113,6 +112,39 @@ module.exports = {
       res.json({ message: "Data Laba Rugi berhasil dihapus" });
     } catch (err) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
+    }
+  },
+  async update(req, res) {
+    try {
+      const { id } = req.params;
+      const { branch_id, year, month, ...rest } = req.body;
+
+      if (!branch_id) {
+        return res.status(400).json({ message: "branch_id wajib diisi" });
+      }
+
+      const data = await LabaRugi.findByPk(id);
+      if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
+
+      await data.update({
+        branch_id,
+        period_id: 1,
+        year,
+        month,
+        ...rest,
+        updated_at: new Date(),
+        version: data.version + 1
+      });
+
+      res.status(200).json({
+        message: "Data kas keuangan berhasil diperbarui",
+        data
+      });
+    } catch (err) {
+      res.status(500).json({
+        message: "Terjadi kesalahan",
+        error: err.message
+      });
     }
   }
 };

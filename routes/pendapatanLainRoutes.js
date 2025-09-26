@@ -75,5 +75,6 @@ const authMiddleware = require("../middlewares/authMiddleware");
 router.post("/", authMiddleware, controller.create);
 router.post("/by-period", authMiddleware, controller.getByPeriod);
 router.delete("/:id", authMiddleware, controller.remove);
+router.put("/:id", authMiddleware, controller.update);
 
 module.exports = router;
