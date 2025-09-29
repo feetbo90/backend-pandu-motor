@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { Pendapatan, Penjualan } = require("../../models");
+const { Pendapatan, Penjualan, PendapatanLain, Piutang, SirkulasiPiutang } = require("../../models");
 
 // export pendapatan
 exports.exportPendapatan = async (req, res) => {
@@ -29,5 +29,36 @@ exports.exportPenjualan = async (req, res) => {
     res.json({ message: "Data penjualan berhasil diexport", file: "penjualan.json" });
   } catch (err) {
     res.status(500).json({ message: "Gagal export penjualan", error: err.message });
+  }
+};
+
+exports.exportAll = async (req, res) => {
+  try {
+    const pendapatan = await Pendapatan.findAll({ raw: true });
+    const penjualan = await Penjualan.findAll({ raw: true });
+    const pendapatanLain = await PendapatanLain.findAll({ raw: true });
+    const piutang = await Piutang.findAll({ raw: true });
+    const sirkulasiPiutang = await SirkulasiPiutang.findAll({ raw: true });
+
+    const jsonData = {
+      pendapatan,
+      penjualan,
+      pendapatanLain,
+      piutang,
+      sirkulasiPiutang
+    };
+
+    const filePath = path.join(__dirname, "../data-export.json");
+    fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
+
+    res.json({
+      message: "Data pendapatan & penjualan berhasil diexport",
+      file: "data-export.json"
+    });
+  } catch (err) {
+    res.status(500).json({
+      message: "Gagal export data",
+      error: err.message
+    });
   }
 };

@@ -76,7 +76,7 @@ const upload = require("../utils/upload");
 router.post("/", authMiddleware, controller.create);
 router.get("/", authMiddleware, controller.getAll);
 router.delete("/:id", authMiddleware, controller.remove);
-router.post("/bulk-upsert", authMiddleware, upload.single("file"), controller.bulkUpsert);
+router.post("/bulk-upsert-pendapatan", authMiddleware, upload.single("file"), controller.bulkUpsert);
 
 router.put("/:id", authMiddleware, controller.update);
 

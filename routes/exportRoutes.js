@@ -4,8 +4,8 @@ const exportController = require("../controllers/master/exportController");
 
 // endpoint untuk export pendapatan.json
 router.get("/export/pendapatan", exportController.exportPendapatan);
-
 // endpoint untuk export penjualan.json
 router.get("/export/penjualan", exportController.exportPenjualan);
+router.get("/export/all", exportController.exportAll);
 
 module.exports = router;

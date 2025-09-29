@@ -134,7 +134,7 @@ const authMiddleware = require("../middlewares/authMiddleware");
  *         description: Server error
  */
 // CRUD
-router.get("/", authMiddleware, entityController.getAll);
+router.get("/", entityController.getAll);
 router.get("/:id", authMiddleware, entityController.getById);
 router.post("/", authMiddleware, entityController.create);
 router.put("/:id", authMiddleware, entityController.update);
