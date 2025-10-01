@@ -4,10 +4,10 @@ module.exports = {
   // POST /api/beban
   async create(req, res) {
     try {
-      const { branch_id, period_id, ...rest } = req.body;
+      const { branch_id, ...rest } = req.body;
 
-      if (!branch_id || !period_id) {
-        return res.status(400).json({ message: "branch_id dan period_id wajib diisi" });
+      if (!branch_id) {
+        return res.status(400).json({ message: "branch_id wajib diisi" });
       }
 
       // Hitung total otomatis
@@ -22,7 +22,7 @@ module.exports = {
 
       const data = await Beban.create({
         branch_id,
-        period_id,
+        period_id: 1,
         ...rest,
         total,
         created_at: new Date(),

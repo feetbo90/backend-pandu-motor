@@ -4,15 +4,15 @@ module.exports = {
   // POST /api/kas-keuangan
   async create(req, res) {
     try {
-      const { branch_id, period_id, year, month, ...rest } = req.body;
+      const { branch_id, year, month, ...rest } = req.body;
 
-      if (!branch_id || !period_id) {
-        return res.status(400).json({ message: "branch_id dan period_id wajib diisi" });
+      if (!branch_id) {
+        return res.status(400).json({ message: "branch_id wajib diisi" });
       }
 
       const data = await KasKeuangan.create({
         branch_id,
-        period_id,
+        period_id: 1,
         year,
         month,
         ...rest,
