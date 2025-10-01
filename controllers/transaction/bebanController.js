@@ -186,7 +186,6 @@ module.exports = {
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
       await data.update({
-        ...req.body,
         gaji,
         admin,
         operasional,
