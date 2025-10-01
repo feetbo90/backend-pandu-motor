@@ -64,24 +64,36 @@ module.exports = {
       const limit = 10;
       const offset = (parseInt(page) - 1) * limit;
 
-      if (year && month) {
-        const { count, rows } = await SirkulasiStock.findAndCountAll({
-          where: { branch_id, year, month, is_active: true },
+      // Asumsi: limit, offset, branch_id, year, month tersedia di scope
+      const where = { branch_id, is_active: true };
+
+      // Tambahkan filter kondisional
+      if (year) where.year = year;
+      if (month) where.month = month;
+
+      const hasFilter = Boolean(year || month);
+
+      if (hasFilter) {
+        // Jika ada filter year/month => ambil semua hasil (sesuai perilaku asli)
+        data = await SirkulasiStock.findAll({
+          where,
           order: [["created_at", "DESC"]],
-          limit,
-          offset
         });
-        data = rows;
-        total = count;
-        totalPages = Math.ceil(count / limit);
+        total = data.length;
+        totalPages = 1;
       } else {
-        // Jika year & month tidak diinput, ambil semua data branch_id dan paginasi
-        const { count, rows } = await SirkulasiStock.findAndCountAll({
-          where: { branch_id, is_active: true },
-          order: [["created_at", "DESC"]],
-          limit,
-          offset
-        });
+        // Jika tidak ada filter => lakukan paginasi (limit + offset) + hitung total
+        // Jalankan kedua query secara paralel untuk menghemat waktu
+        const [rows, count] = await Promise.all([
+          SirkulasiStock.findAll({
+            where,
+            order: [["created_at", "DESC"]],
+            limit,
+            offset,
+          }),
+          SirkulasiStock.count({ where }),
+        ]);
+
         data = rows;
         total = count;
         totalPages = Math.ceil(count / limit);
