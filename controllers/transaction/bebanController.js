@@ -195,7 +195,7 @@ module.exports = {
         version: data.version + 1
       });
 
-      res.json({ message: "Data pendapatan berhasil diperbarui", data });
+      res.json({ message: "Data beban berhasil diperbarui", data });
     } catch (err) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }
