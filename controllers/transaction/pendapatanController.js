@@ -53,7 +53,7 @@ module.exports = {
       }
 
       res.status(200).json({
-        message: "Data pendapatan berhasil diambil",
+        message: "Data pendapatan lain berhasil diambil",
         period_id: finalPeriodId || null,
         data,
         total,

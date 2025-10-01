@@ -72,6 +72,7 @@ const authMiddleware = require("../middlewares/authMiddleware");
  *       500:
  *         description: Server error
  */
+router.get("/", authMiddleware, controller.getAll);
 router.post("/", authMiddleware, controller.create);
 router.post("/by-period", authMiddleware, controller.getByPeriod);
 router.delete("/:id", authMiddleware, controller.remove);
