@@ -48,13 +48,10 @@ exports.exportAll = async (req, res) => {
       sirkulasiPiutang
     };
 
-    const filePath = path.join(__dirname, "../data-export.json");
-    fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
-
-    res.json({
-      message: "Data pendapatan & penjualan berhasil diexport",
-      file: "data-export.json"
-    });
+    // Set header supaya browser download, bukan tampilkan JSON
+    res.setHeader("Content-Disposition", "attachment; filename=data-export.json");
+    res.setHeader("Content-Type", "application/json");
+    res.send(JSON.stringify(jsonData, null, 2));
   } catch (err) {
     res.status(500).json({
       message: "Gagal export data",
@@ -62,3 +59,4 @@ exports.exportAll = async (req, res) => {
     });
   }
 };
+
