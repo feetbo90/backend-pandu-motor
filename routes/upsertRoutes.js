@@ -4,7 +4,7 @@ const controller = require("../controllers/transaction/upsertController");
 const upload = require("../utils/upload"); // multer setup
 
 // Upload file .json
-router.post("/bulk-upsert", upload.single("file"), controller.bulkUpsert);
+router.post("/import-to-cabang", upload.single("file"), controller.bulkUpsert);
 
 // Kirim langsung JSON di body
 router.post("/bulk-upsert-body", controller.bulkUpsertFromBody);

@@ -8,6 +8,6 @@ const authMiddleware = require("../middlewares/authMiddleware");
 router.get("/export/pendapatan", exportController.exportPendapatan);
 // endpoint untuk export penjualan.json
 router.get("/export/penjualan", exportController.exportPenjualan);
-router.get("/export/all", authMiddleware, exportController.exportAll);
+router.get("/export/all", exportController.exportAll);
 
 module.exports = router;

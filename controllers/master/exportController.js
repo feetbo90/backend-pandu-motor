@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { Pendapatan, Penjualan, PendapatanLain, Piutang, SirkulasiPiutang } = require("../../models");
+const { Pendapatan, Penjualan, PendapatanLain, Piutang, SirkulasiPiutang, SirkulasiStock, BarangPk, Beban, SumberDaya } = require("../../models");
 
 // export pendapatan
 exports.exportPendapatan = async (req, res) => {
@@ -34,18 +34,37 @@ exports.exportPenjualan = async (req, res) => {
 
 exports.exportAll = async (req, res) => {
   try {
-    const pendapatan = await Pendapatan.findAll({ raw: true });
-    const penjualan = await Penjualan.findAll({ raw: true });
-    const pendapatanLain = await PendapatanLain.findAll({ raw: true });
-    const piutang = await Piutang.findAll({ raw: true });
-    const sirkulasiPiutang = await SirkulasiPiutang.findAll({ raw: true });
+
+    const { year, month } = req.query; // ambil dari query param: /api/export-all?year=2025&month=9
+
+    const whereFilter = {};
+    if (year) {
+      whereFilter.year = year;
+      if (month) {
+        whereFilter.month = month;
+      }
+    }
+
+    const pendapatan = await Pendapatan.findAll({ where: whereFilter, raw: true });
+    const penjualan = await Penjualan.findAll({ where: whereFilter, raw: true });
+    const pendapatanLain = await PendapatanLain.findAll({ where: whereFilter, raw: true });
+    const piutang = await Piutang.findAll({ where: whereFilter, raw: true });
+    const sirkulasiPiutang = await SirkulasiPiutang.findAll({ where: whereFilter, raw: true });
+    const sirkulasiStock = await SirkulasiStock.findAll({ where: whereFilter, raw: true });
+    const barangPk = await BarangPk.findAll({ where: whereFilter, raw: true });
+    const beban = await Beban.findAll({ where: whereFilter, raw: true });
+    const sumberDaya = await SumberDaya.findAll({ where: whereFilter, raw: true });
 
     const jsonData = {
       pendapatan,
       penjualan,
       pendapatanLain,
       piutang,
-      sirkulasiPiutang
+      sirkulasiPiutang,
+      sirkulasiStock,
+      barangPk, 
+      beban,
+      sumberDaya
     };
 
     // Set header supaya browser download, bukan tampilkan JSON
