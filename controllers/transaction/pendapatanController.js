@@ -1,6 +1,7 @@
 const { Pendapatan, Period } = require("../../models");
 const { upsertPendapatan } = require("../../services/pendapatanService");
 const fs = require("fs");
+const { v4: uuidv4 } = require("uuid");
 
 module.exports = {
   // GET /api/pendapatan
@@ -108,9 +109,26 @@ module.exports = {
       });
 
       if (existing) {
-        return res.status(400).json({
-          message: `Data pendapatan untuk tahun ${year} dan bulan ${month} sudah tersedia`
-        });
+        if (existing.is_active === true) {
+          // Kalau sudah aktif → tolak create baru
+          return res.status(400).json({
+            message: `Data penjualan untuk tahun ${year} dan bulan ${month} sudah aktif`
+          });
+        } else {
+          // Kalau sudah ada tapi nonaktif → aktifkan kembali dan update fieldnya
+          await existing.update({
+            ...req.body,
+            is_active: true,
+            updated_at: new Date(),
+            version: existing.version + 1,
+            change_id: uuidv4()
+          });
+
+          return res.status(200).json({
+            message: "Data penjualan nonaktif berhasil diaktifkan kembali dan diperbarui",
+            data: existing
+          });
+        }
       }
 
       const data = await Pendapatan.create({
@@ -122,6 +140,7 @@ module.exports = {
         created_at: new Date(),
         updated_at: new Date(),
         version: 1,
+        change_id: uuidv4(),
         is_active: true
       });
 
@@ -134,15 +153,28 @@ module.exports = {
   // PUT /api/pendapatan/:id
   async update(req, res) {
     try {
+      const { markup_kontan, markup_kredit, markup_jumlah, realisasi_bunga, diskon_bunga, denda, administrasi, jumlah_pendapatan } = req.body;
+
       const data = await Pendapatan.findByPk(req.params.id);
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
-      await data.update({
-        ...req.body,
-        updated_at: new Date(),
-        version: data.version + 1
-      });
 
+      console.log("req.body.version:", req.body.version);
+      console.log("data.version:",( Number(data.version) + 1));
+
+      await data.update({
+        markup_kontan: markup_kontan ?? data.markup_kontan,
+        markup_kredit: markup_kredit ?? data.markup_kredit,
+        markup_jumlah: markup_jumlah ?? data.markup_jumlah,
+        realisasi_bunga: realisasi_bunga ?? data.realisasi_bunga,
+        diskon_bunga: diskon_bunga ?? data.diskon_bunga,
+        denda: denda ?? data.denda,
+        administrasi: administrasi ?? data.administrasi,
+        jumlah_pendapatan: jumlah_pendapatan ?? data.jumlah_pendapatan,
+        change_id: uuidv4(),
+        updated_at: new Date(),
+        version: Number(data.version) + 1 // selalu naikkan versi
+      });
       res.json({ message: "Data pendapatan berhasil diperbarui", data });
     } catch (err) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
@@ -155,7 +187,12 @@ module.exports = {
       const data = await Pendapatan.findByPk(req.params.id);
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
-      await data.destroy(); 
+      await data.update({
+        is_active: false,
+        version: Number(data.version) + 1,
+        change_id: uuidv4(),
+        updated_at: new Date()
+      });
 
       res.json({ message: "Data pendapatan berhasil dihapus (soft delete)" });
     } catch (err) {

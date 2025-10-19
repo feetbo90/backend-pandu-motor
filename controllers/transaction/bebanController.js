@@ -10,21 +10,10 @@ module.exports = {
         return res.status(400).json({ message: "branch_id wajib diisi" });
       }
 
-      // Hitung total otomatis
-      const total =
-        (rest.gaji || 0) +
-        (rest.admin || 0) +
-        (rest.operasional || 0) +
-        (rest.beban_umum_operasional || 0) +
-        (rest.penyusutan_aktiva || 0) +
-        (rest.cadangan_piutang || 0) +
-        (rest.cadangan_stock || 0);
-
       const data = await Beban.create({
         branch_id,
         period_id: 1,
         ...rest,
-        total,
         created_at: new Date(),
         updated_at: new Date(),
         version: 1,

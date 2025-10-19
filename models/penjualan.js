@@ -30,6 +30,18 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         defaultValue: 0
       },
+      unit_jualkontan: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0
+      },
+      unit_jualkredit: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0
+      },
+      unit_jualleasing: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0
+      },
       jumlah: {
         type: DataTypes.INTEGER,
         defaultValue: 0
@@ -51,7 +63,8 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true
-      }
+      },
+      change_id: { type: DataTypes.UUID, allowNull: true }
     },
     {
       tableName: "penjualan",

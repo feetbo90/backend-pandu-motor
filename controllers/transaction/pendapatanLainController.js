@@ -1,4 +1,5 @@
 const { PendapatanLain, Period } = require("../../models");
+const { v4: uuidv4 } = require("uuid");
 
 module.exports = {
   // POST /api/pendapatan-lain
@@ -81,19 +82,48 @@ module.exports = {
   },
   async create(req, res) {
     try {
-      const { branch_id, ...rest } = req.body;
+      const { branch_id, year, month, ...rest } = req.body;
 
       if (!branch_id) {
         return res.status(400).json({ message: "branch_id wajib diisi" });
       }
 
+      const existing = await PendapatanLain.findOne({
+        where: { branch_id, year, month, is_active: true }
+      });
+
+      if (existing) {
+        if (existing.is_active === true) {
+          // Kalau sudah aktif → tolak create baru
+          return res.status(400).json({
+            message: `Data pendapatan lain untuk tahun ${year} dan bulan ${month} sudah aktif`
+          });
+        } else {
+          await existing.update({
+            ...req.body,
+            is_active: true,
+            updated_at: new Date(),
+            version: existing.version + 1,
+            change_id: uuidv4()
+          });
+
+          return res.status(200).json({
+            message: "Data pendapatan lain nonaktif berhasil diaktifkan kembali dan diperbarui",
+            data: existing
+          });
+        }
+      }
+
       const data = await PendapatanLain.create({
         branch_id,
         period_id: 1,
+        year,
+        month,
         ...rest,
         created_at: new Date(),
         updated_at: new Date(),
         version: 1,
+        change_id: uuidv4(),
         is_active: true
       });
 
@@ -180,7 +210,12 @@ module.exports = {
       const data = await PendapatanLain.findByPk(req.params.id);
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
-      await data.destroy();
+      await data.update({
+        is_active: false,
+        version: Number(data.version) + 1,
+        change_id: uuidv4(),
+        updated_at: new Date()
+      });
 
       res.json({ message: "Data Pendapatan Lain berhasil dihapus" });
     } catch (err) {
@@ -205,12 +240,13 @@ module.exports = {
         year,
         month,
         ...rest,
+        change_id: uuidv4(),
         updated_at: new Date(),
-        version: data.version + 1
+        version: Number(data.version) + 1
       });
 
       res.status(200).json({
-        message: "Data kas keuangan berhasil diperbarui",
+        message: "Data Pendapatan Lain berhasil diperbarui",
         data
       });
     } catch (err) {
