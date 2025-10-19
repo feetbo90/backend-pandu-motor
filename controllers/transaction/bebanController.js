@@ -5,7 +5,7 @@ module.exports = {
   // POST /api/beban
   async create(req, res) {
     try {
-      const { branch_id, ...rest } = req.body;
+      const { branch_id, year, month, ...rest } = req.body;
 
       if (!branch_id) {
         return res.status(400).json({ message: "branch_id wajib diisi" });
@@ -26,6 +26,8 @@ module.exports = {
             ...req.body,
             is_active: true,
             updated_at: new Date(),
+            year,
+            month,
             version: existing.version + 1,
             change_id: uuidv4()
           });
@@ -43,6 +45,8 @@ module.exports = {
         ...rest,
         created_at: new Date(),
         updated_at: new Date(),
+        year,
+        month,
         version: 1,
         change_id: uuidv4(),
         is_active: true
