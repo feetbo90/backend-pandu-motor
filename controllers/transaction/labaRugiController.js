@@ -4,7 +4,7 @@ module.exports = {
   // POST /api/laba-rugi
   async create(req, res) {
     try {
-      const { branch_id, ...rest } = req.body;
+      const { branch_id,month, year, ...rest } = req.body;
 
       if (!branch_id) {
         return res.status(400).json({ message: "branch_id wajib diisi" });
