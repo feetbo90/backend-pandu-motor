@@ -24,6 +24,7 @@ module.exports = (sequelize, DataTypes) => {
       denda_keterlambatan: { type: DataTypes.BIGINT, defaultValue: 0 },
       diskon_denda: { type: DataTypes.BIGINT, defaultValue: 0 },
       jumlah_pendapatan_lain: { type: DataTypes.BIGINT, defaultValue: 0 },
+      change_id: { type: DataTypes.UUID, allowNull: true },
       created_at: DataTypes.DATE,
       change_id: { type: DataTypes.UUID, allowNull: true },
       updated_at: DataTypes.DATE,

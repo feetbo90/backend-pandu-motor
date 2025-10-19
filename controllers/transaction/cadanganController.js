@@ -10,6 +10,32 @@ module.exports = {
         return res.status(400).json({ message: "branch_id wajib diisi" });
       }
 
+      const existing = await Cadangan.findOne({
+        where: { branch_id, year, month, is_active: true }
+      });
+
+      if (existing) {
+        if (existing.is_active === true) {
+          // Kalau sudah aktif → tolak create baru
+          return res.status(400).json({
+            message: `Data cadangan untuk tahun ${year} dan bulan ${month} sudah aktif`
+          });
+        } else {
+          await existing.update({
+            ...req.body,
+            is_active: true,
+            updated_at: new Date(),
+            version: existing.version + 1,
+            // change_id: uuidv4()
+          });
+
+          return res.status(200).json({
+            message: "Data cadangan nonaktif berhasil diaktifkan kembali dan diperbarui",
+            data: existing
+          });
+        }
+      }
+
       const data = await Cadangan.create({
         branch_id,
         period_id: 1,

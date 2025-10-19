@@ -40,6 +40,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.BIGINT,
         defaultValue: 0
       },
+      change_id: { type: DataTypes.UUID, allowNull: true },
       created_at: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW

@@ -1,13 +1,40 @@
 const { BarangPk, Period } = require("../../models");
+const { v4: uuidv4 } = require("uuid");
 
 module.exports = {
   // POST /api/barang-pk
   async create(req, res) {
     try {
-      const { branch_id, ...rest } = req.body;
+      const { branch_id, year, month, ...rest } = req.body;
 
       if (!branch_id) {
         return res.status(400).json({ message: "branch_id wajib diisi" });
+      }
+
+      const existing = await BarangPk.findOne({
+        where: { branch_id, year, month, is_active: true }
+      });
+
+      if (existing) {
+        if (existing.is_active === true) {
+          // Kalau sudah aktif → tolak create baru
+          return res.status(400).json({
+            message: `Data beban untuk tahun ${year} dan bulan ${month} sudah aktif`
+          });
+        } else {
+          await existing.update({
+            ...req.body,
+            is_active: true,
+            updated_at: new Date(),
+            version: Number(existing.version) + 1,
+            change_id: uuidv4()
+          });
+
+          return res.status(200).json({
+            message: "Data beban nonaktif berhasil diaktifkan kembali dan diperbarui",
+            data: existing
+          });
+        }
       }
 
       const data = await BarangPk.create({
@@ -17,6 +44,9 @@ module.exports = {
         created_at: new Date(),
         updated_at: new Date(),
         version: 1,
+        year,
+        month,
+        change_id: uuidv4(),
         is_active: true
       });
 
@@ -120,7 +150,12 @@ module.exports = {
       const data = await BarangPk.findByPk(req.params.id);
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
-      await data.destroy();
+      await data.update({
+        is_active: false,
+        version: Number(data.version) + 1,
+        change_id: uuidv4(),
+        updated_at: new Date()
+      });
 
       res.json({ message: "Data Barang berhasil dihapus" });
     } catch (err) {
@@ -135,8 +170,9 @@ module.exports = {
 
       await data.update({
         ...req.body,
+        change_id: uuidv4(),
         updated_at: new Date(),
-        version: data.version + 1
+        version: Number(data.version) + 1
       });
 
       res.json({ message: "Data barang_pk berhasil diperbarui", data });

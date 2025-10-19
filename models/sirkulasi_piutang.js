@@ -31,6 +31,7 @@ module.exports = (sequelize, DataTypes) => {
       macet_lama_persen: { type: DataTypes.INTEGER, defaultValue: 0 },
       total: { type: DataTypes.BIGINT, defaultValue: 0 },
       total_persen: { type: DataTypes.INTEGER, defaultValue: 0 },
+      change_id: { type: DataTypes.UUID, allowNull: true },
       created_at: DataTypes.DATE,
       updated_at: DataTypes.DATE,
       version: { type: DataTypes.BIGINT, defaultValue: 1 },

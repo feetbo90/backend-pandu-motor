@@ -1,4 +1,5 @@
 const { SirkulasiStock, Period } = require("../../models");
+const { v4: uuidv4 } = require("uuid");
 
 module.exports = {
   // POST /api/sirkulasi-stock
@@ -10,12 +11,39 @@ module.exports = {
         return res.status(400).json({ message: "branch_id wajib diisi" });
       }
 
+      const existing = await SirkulasiStock.findOne({
+        where: { branch_id, year, month, is_active: true }
+      });
+
+      if (existing) {
+        if (existing.is_active === true) {
+          // Kalau sudah aktif → tolak create baru
+          return res.status(400).json({
+            message: `Data sirkulasi stock untuk tahun ${year} dan bulan ${month} sudah aktif`
+          });
+        } else {
+          await existing.update({
+            ...req.body,
+            is_active: true,
+            updated_at: new Date(),
+            version: existing.version + 1,
+            change_id: uuidv4()
+          });
+
+          return res.status(200).json({
+            message: "Data sirkulasi stock nonaktif berhasil diaktifkan kembali dan diperbarui",
+            data: existing
+          });
+        }
+      }
+
       const data = await SirkulasiStock.create({
         branch_id,
         period_id: 1,
         ...rest,
         created_at: new Date(),
         updated_at: new Date(),
+        change_id: uuidv4(),
         version: 1,
         is_active: true
       });
@@ -119,7 +147,12 @@ module.exports = {
       const data = await SirkulasiStock.findByPk(req.params.id);
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
-      await data.destroy();
+      await data.update({
+        is_active: false,
+        version: Number(data.version) + 1,
+        change_id: uuidv4(),
+        updated_at: new Date()
+      });
 
       res.json({ message: "Data Sirkulasi Stock berhasil dihapus" });
     } catch (err) {
@@ -144,8 +177,9 @@ module.exports = {
         year,
         month,
         ...rest,
+        change_id: uuidv4(),
         updated_at: new Date(),
-        version: data.version + 1
+        version: Number(data.version) + 1
       });
 
       res.status(200).json({
