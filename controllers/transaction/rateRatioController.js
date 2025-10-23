@@ -127,7 +127,7 @@ module.exports = {
           month: bulan.month,
           jumlah_karyawan: jumlahKaryawan,
           total_penjualan: totalPenjualan,
-          rate_tiga:
+          total_penjualan_per_karyawan:
             jumlahKaryawan === 0 ? 0 : totalPenjualan / jumlahKaryawan,
         });
       }
@@ -157,7 +157,7 @@ module.exports = {
           month: p.month,
           jumlah_karyawan: jumlahKaryawan,
           total_markup: totalMarkup,
-          rate_empat: jumlahKaryawan === 0 ? 0 : totalMarkup / jumlahKaryawan,
+          total_markup_per_karyawan: jumlahKaryawan === 0 ? 0 : totalMarkup / jumlahKaryawan,
         };
       });
 
