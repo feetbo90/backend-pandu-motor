@@ -1,5 +1,6 @@
 const { Penjualan, Period } = require("../../models");
 const { v4: uuidv4 } = require("uuid");
+const { Sequelize } = require("sequelize");
 
 module.exports = {
   // POST /api/penjualan
@@ -195,5 +196,4 @@ async create(req, res) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }
   }
-
 };

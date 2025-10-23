@@ -23,6 +23,7 @@ const kasKeuanganRoutes = require("./routes/kasKeuanganRoutes");
 const cadanganRoutes = require("./routes/cadanganRoutes");
 const exportPendapatan = require("./routes/exportRoutes");
 const upsertRoutes = require("./routes/upsertRoutes");
+const rateRatioRoutes = require("./routes/rateRatioRoutes");
 // const pembiayaanRoutes = require("./routes/pembiayaanRoutes"); --- IGNORE ---
 
 const swaggerJSDoc = require('swagger-jsdoc');
@@ -73,6 +74,7 @@ app.use("/api/kas-keuangan", kasKeuanganRoutes);
 app.use("/api/cadangan", cadanganRoutes);
 app.use("/api", exportPendapatan);
 app.use("/api/upsert", upsertRoutes);
+app.use("/api/rate-ratio", rateRatioRoutes);
 // app.use("/api/pembiayaan", pembiayaanRoutes); --- IGNORE ---
 
 // Endpoint untuk docs
