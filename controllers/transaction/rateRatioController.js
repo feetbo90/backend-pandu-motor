@@ -222,7 +222,7 @@ module.exports = {
       });
     }
   },
-  async getRateDescendantsBackup(req, res) {
+  async getRateDescendants(req, res) {
     // Implementasi serupa dengan getRate, tetapi menyesuaikan untuk cabang turunan
     try {
     const { entity_id } = req.params;
@@ -412,7 +412,7 @@ module.exports = {
       return res.status(500).json({ success: false, message: error.message });
     }
   },
-  async getRateDescendants(req, res) {
+  async getRateDescendantsBackup(req, res) {
   try {
     const { entity_id } = req.params;
     const { year, month } = req.query;
