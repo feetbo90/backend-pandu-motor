@@ -542,10 +542,17 @@ module.exports = {
       console.log("Descendant Entity IDs:", entityIds);
 
       // ✅ Struktur hasil
-      const rateSatu = {};
-      const rateTiga = {};
-      const rateEmpat = {};
-      const rateLima = {};
+      const rasioSatu = {};
+      const rasioTiga = {};
+      const rasioEmpat = {};
+      const rasioLima = {};
+      const rasioEnam = {};
+      const rasioTujuh = {};
+      const rasioDelapan = {};
+      const rasioSembilan = {};
+      const rasioSepuluh = {};
+      const rasioSebelas = {};
+
       for (const entityItem of entityIds) {
         const { id, type, name } = entityItem || {};
         if (!id) continue;
@@ -599,7 +606,7 @@ module.exports = {
           };
         });
 
-        rateSatu[name] = merged;
+        rasioSatu[name] = merged;
 
         const pendapatan = await Pendapatan.findAll({
           where: where,
@@ -609,7 +616,8 @@ module.exports = {
             [Sequelize.fn("SUM", Sequelize.col("markup_jumlah")), "total_markup"],
             [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "realisasi_bunga"],
             [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan")), "jumlah_pendapatan"],
-
+            [Sequelize.fn("SUM", Sequelize.col("denda")), "denda"],
+            [Sequelize.fn("SUM", Sequelize.col("administrasi")), "administrasi"],
           ],
           group: ["year", "month"],
           raw: true,
@@ -636,7 +644,7 @@ module.exports = {
           };
       });
 
-      rateTiga[name] = mergedData;
+      rasioTiga[name] = mergedData;
 
       const sirkulasiPiutang = await SirkulasiPiutang.findAll({
           where: where,
@@ -670,7 +678,7 @@ module.exports = {
           };
       });
 
-      rateEmpat[name] = mergedPendapatanSirkulasi;
+      rasioEmpat[name] = mergedPendapatanSirkulasi;
 
       const mergedMarkedUpAndJumlahPendapatan = pendapatan.map((pend) => {
           
@@ -690,7 +698,85 @@ module.exports = {
           };
       });
 
-      rateLima[name] = mergedMarkedUpAndJumlahPendapatan;
+      rasioLima[name] = mergedMarkedUpAndJumlahPendapatan;
+
+      const mergedRasioPendapatanBungaPerJmlhPendapatan = pendapatan.map((pend) => {
+          
+          const realisasi_bunga = parseFloat(pend.realisasi_bunga || 0);
+          const jumlah_pendapatan = parseFloat(pend?.jumlah_pendapatan || 0);
+
+          const rasio_markup =
+            jumlah_pendapatan > 0 ? (realisasi_bunga / jumlah_pendapatan) * 100 : 0;
+
+          return {
+            type: type.toLowerCase(),
+            year: pend.year,
+            month: pend.month,
+            jumlah_pendapatan: jumlah_pendapatan.toFixed(1),
+            realisasi_bunga: realisasi_bunga.toFixed(1),
+            rasio_pendapatan_bunga_per_jumlah_pendapatan: rasio_markup.toFixed(2),
+          };
+      });
+      rasioEnam[name] = mergedRasioPendapatanBungaPerJmlhPendapatan;
+
+      const mergedRasioDendaAdministrasiPerJmlhPendapatan = pendapatan.map((pend) => {
+          
+          const denda = parseFloat(pend.denda || 0);
+          const administrasi = parseFloat(pend.administrasi || 0);
+          const jumlah_pendapatan = parseFloat(pend?.jumlah_pendapatan || 0);
+
+          const rasio_pendapatan_lainnya =
+            jumlah_pendapatan > 0 ? ((denda + administrasi) / jumlah_pendapatan) * 100 : 0;
+
+          return {
+            type: type.toLowerCase(),
+            year: pend.year,
+            month: pend.month,
+            jumlah_pendapatan: jumlah_pendapatan.toFixed(1),
+            denda: denda.toFixed(1),
+            administrasi: administrasi.toFixed(1),
+            rasio_pendapatan_lainnya_per_jumlah_pendapatan: rasio_pendapatan_lainnya.toFixed(2),
+          };
+      });
+      rasioTujuh[name] = mergedRasioDendaAdministrasiPerJmlhPendapatan;
+
+      const beban = await Beban.findAll({
+          where: where,
+          attributes: ["year", "month", "gaji", "beban_umum_operasional", "penyusutan_aktiva"],
+          raw: true,
+        });
+
+      const mergedGajiPerPendapatan = pendapatan.map((pend) => {
+          const gaji = parseFloat(beban.gaji || 0);
+          const jumlah_pendapatan = parseFloat(pend?.jumlah_pendapatan || 0);
+          const rasio_gaji_per_pendapatan = jumlah_pendapatan > 0 ? (gaji /jumlah_pendapatan) * 100 : 0;
+
+          return {
+            type: type.toLowerCase(),
+            year: pend.year,
+            month: pend.month,
+            jumlah_pendapatan: jumlah_pendapatan.toFixed(1),
+            gaji: gaji,
+            rasio_gaji_per_pendapatan: rasio_gaji_per_pendapatan.toFixed(2)
+          }
+
+      });
+      rasioDelapan[name] = mergedGajiPerPendapatan;
+      const mergedBebanOperasionalPerPendapatan = pendapatan.map((pend) => {
+        const beban_umum_operasional = parseFloat(beban.beban_umum_operasional || 0);
+        const jumlah_pendapatan = parseFloat(pend?.jumlah_pendapatan || 0);
+        const rasio_beban_operasional_per_pendapatan = jumlah_pendapatan > 0 ? (beban_umum_operasional / jumlah_pendapatan) * 100 : 0;
+
+        return {
+          type: type.toLowerCase(),
+          year: pend.year,
+          month: pend.month,
+          jumlah_pendapatan: jumlah_pendapatan.toFixed(1),
+          beban_umum_operasional: beban_umum_operasional.toFixed(1),
+          rasio_beban_operasional_per_pendapatan: rasio_beban_operasional_per_pendapatan.toFixed(2),
+        };
+      });
+      rasioSembilan[name] = mergedBebanOperasionalPerPendapatan;
       }
 
       // --- Kembalikan hasil akhir ---
@@ -698,10 +784,14 @@ module.exports = {
         success: true,
         entity_id,
         entityIds,
-        rateSatu,
-        rateTiga,
-        rateEmpat,
-        rateLima,
+        rasioSatu,
+        rasioTiga,
+        rasioEmpat,
+        rasioLima,
+        rasioEnam,
+        rasioTujuh,
+        rasioDelapan,
+        rasioSembilan
       });
 
     } catch (error) {
