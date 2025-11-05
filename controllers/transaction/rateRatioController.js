@@ -237,6 +237,16 @@ module.exports = {
     const rateTiga = {};
     const rateEmpat = {};
     const rateLimaEnamTujuh = {};
+    const agregatCabang = {
+      total_pembiayaan: 0,
+      total_unit_jual: 0,
+      total_penjualan: 0,
+      total_unit: 0,
+      total_karyawan: 0,
+    };
+    // AGREGAT PER BULAN untuk seluruh unit di bawah cabang
+    // key = `${year}-${month}`
+    const agregatByMonth = {};
 
     for (const entityItem of entityIds) {
       const { id, type, name } = entityItem || {};
@@ -300,17 +310,95 @@ module.exports = {
         raw: true,
       });
 
-      dataPerEntity[name] = dataBulan.map((row) => ({
-        type: entity?.entity_type?.toLowerCase() || "unknown",
-        ...row,
-      }));
-
+      // "type": "unit",
+      //           "year": 2025,
+      //           "month": 10,
+      //           "total_pembiayaan": "2000",
+      //           "total_unit_jual": "2",
+      //           "pembiayaan_per_unit": 1000,
+      //           "total_penjualan": "3000",
+      //           "total_unit": "3",
+      //           "penjualan_per_unit": 1000
       // --- Ambil data sumber daya ---
       const sumberDaya = await SumberDaya.findAll({
-        where: where,
-        attributes: ["year", "month", "jumlah_karyawan"],
+        where,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("jumlah_karyawan")), "jumlah_karyawan"],
+        ],
+        group: ["year", "month"],
         raw: true,
       });
+
+      dataPerEntity[name] = dataBulan.map(row => {
+        const sd = sumberDaya.find(s => s.year === row.year && s.month === row.month);
+        const jumlah_karyawan = parseFloat(sd?.jumlah_karyawan || 0);
+        const total_penjualan = parseFloat(row.total_penjualan || 0);
+        return {
+          type: entity?.entity_type?.toLowerCase() || "unknown",
+          year: row.year,
+          month: row.month,
+          total_pembiayaan: parseFloat(row.total_pembiayaan || 0),
+          total_unit_jual: parseFloat(row.total_unit_jual || 0),
+          total_penjualan,
+          total_unit: parseFloat(row.total_unit || 0),
+          jumlah_karyawan,
+          // per-unit metrics for unit level:
+          pembiayaan_per_unit: row.total_unit_jual > 0 ? (parseFloat(row.total_pembiayaan || 0) / parseFloat(row.total_unit_jual || 0)) : 0,
+          penjualan_per_unit: row.total_unit > 0 ? (total_penjualan / parseFloat(row.total_unit || 0)) : 0,
+          penjualan_per_karyawan: jumlah_karyawan > 0 ? (total_penjualan / jumlah_karyawan) : 0,
+        };
+      });
+
+      // ✅ Tambahkan ke agregat cabang
+      dataBulan.forEach(row => {
+        agregatCabang.total_pembiayaan += parseFloat(row.total_pembiayaan || 0);
+        agregatCabang.total_unit_jual += parseFloat(row.total_unit_jual || 0);
+        agregatCabang.total_penjualan += parseFloat(row.total_penjualan || 0);
+        agregatCabang.total_unit += parseFloat(row.total_unit || 0);
+      });
+
+      // Tambahkan ke agregat cabang per bulan (sum across units)
+      dataBulan.forEach(row => {
+        const key = `${row.year}-${row.month}`;
+        if (!agregatByMonth[key]) {
+          agregatByMonth[key] = {
+            year: row.year,
+            month: row.month,
+            total_pembiayaan: 0,
+            total_unit_jual: 0,
+            total_penjualan: 0,
+            total_unit: 0,
+            total_karyawan: 0, // akan kita tambahkan dari sumberDaya
+            total_markup: 0,
+          };
+        }
+        agregatByMonth[key].total_pembiayaan += parseFloat(row.total_pembiayaan || 0);
+        agregatByMonth[key].total_unit_jual += parseFloat(row.total_unit_jual || 0);
+        agregatByMonth[key].total_penjualan += parseFloat(row.total_penjualan || 0);
+        agregatByMonth[key].total_unit += parseFloat(row.total_unit || 0);
+      });
+
+      // tambahkan jumlah karyawan unit ke agregatByMonth
+      sumberDaya.forEach(sd => {
+        const key = `${sd.year}-${sd.month}`;
+        if (!agregatByMonth[key]) {
+          agregatByMonth[key] = {
+            year: sd.year,
+            month: sd.month,
+            total_pembiayaan: 0,
+            total_unit_jual: 0,
+            total_penjualan: 0,
+            total_unit: 0,
+            total_karyawan: 0,
+            total_markup: 0,
+          };
+        }
+        agregatByMonth[key].total_karyawan += parseFloat(sd.jumlah_karyawan || 0);
+      });
+
+      
       // === Gabungkan untuk rate_tiga ===
       const mergedData = dataBulan.map((penj) => {
         const sd = sumberDaya.find((s) => s.year === penj.year && s.month === penj.month);
@@ -345,6 +433,22 @@ module.exports = {
         const sd = sumberDaya.find((s) => s.year === p.year && s.month === p.month);
         const jumlah_karyawan = sd?.jumlah_karyawan || 0;
         const total_markup = parseFloat(p.total_markup || 0);
+        
+        
+        const key = `${sd.year}-${sd.month}`;
+        if (!agregatByMonth[key]) {
+          agregatByMonth[key] = {
+            year: sd.year,
+            month: sd.month,
+            total_pembiayaan: 0,
+            total_unit_jual: 0,
+            total_penjualan: 0,
+            total_unit: 0,
+            total_karyawan: 0,
+            total_markup: 0,
+          };
+        }
+        agregatByMonth[key].total_markup += parseFloat(total_markup || 0);
 
         return {
           year: p.year,
@@ -397,11 +501,58 @@ module.exports = {
       rateLimaEnamTujuh[name] = result;
     }
 
+    // ✅ Hitung rasio cabang (hasil rata-rata dari semua unit)
+    const cabang = await Entities.findOne({
+      where: { id: entity_id },
+      attributes: ["name"],
+      raw: true,
+    });
+
+    const hasilCabang = {
+      cabang: cabang?.name || "CABANG",
+      total_pembiayaan: agregatCabang.total_pembiayaan,
+      total_unit_jual: agregatCabang.total_unit_jual,
+      total_penjualan: agregatCabang.total_penjualan,
+      total_unit: agregatCabang.total_unit,
+      pembiayaan_per_unit:
+        agregatCabang.total_unit_jual > 0
+          ? agregatCabang.total_pembiayaan / agregatCabang.total_unit_jual
+          : 0,
+      penjualan_per_unit:
+        agregatCabang.total_unit > 0
+          ? agregatCabang.total_penjualan / agregatCabang.total_unit
+          : 0,
+    };
+
+     // Buat hasil cabang per bulan dari agregatByMonth
+    const hasilCabangPerBulan = Object.values(agregatByMonth)
+      .sort((a, b) => a.year - b.year || a.month - b.month)
+      .map(item => {
+        return {
+          year: item.year,
+          month: item.month,
+          total_pembiayaan: item.total_pembiayaan,
+          total_unit_jual: item.total_unit_jual,
+          total_penjualan: item.total_penjualan,
+          total_unit: item.total_unit,
+          total_karyawan: item.total_karyawan,
+          total_markup: item.total_markup,
+          // metrics:
+          pembiayaan_per_unit: item.total_unit_jual > 0 ? item.total_pembiayaan / item.total_unit_jual : 0,
+          penjualan_per_unit: item.total_unit > 0 ? item.total_penjualan / item.total_unit : 0,
+          penjualan_per_karyawan: item.total_karyawan > 0 ? item.total_penjualan / item.total_karyawan : 0,
+          mark_up_per_karyawan: item.total_markup > 0 ? item.total_markup / item.total_karyawan: 0,
+        };
+      });
+
+
     // ✅ Response akhir
       return res.json({
         success: true,
         entity_id,
         entityIds,
+        cabang: { name: cabang?.name || "CABANG", rate_satu_dua_tiga: hasilCabangPerBulan },
+        // cabang: hasilCabang,
         rate_satu_dua: dataPerEntity,
         rate_tiga: rateTiga,
         rate_empat: rateEmpat,
