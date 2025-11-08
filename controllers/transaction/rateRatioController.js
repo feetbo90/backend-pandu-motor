@@ -261,6 +261,7 @@ module.exports = {
           total_markup: 0,
           total_gaji: 0,
           total_beban_umum_operasional: 0,
+          total_penyusutan_aktiva: 0,
         };
       }
       return agregatByMonth[key];
@@ -485,6 +486,7 @@ module.exports = {
         const monthAgg = ensureAgregatMonth(b.year, b.month);
         monthAgg.total_gaji += gajiValue;
         monthAgg.total_beban_umum_operasional += parseFloat(b.beban_umum_operasional || 0);
+        monthAgg.total_penyusutan_aktiva += parseFloat(b.penyusutan_aktiva || 0);
       });
 
       const monthKeyMap = new Map();
@@ -563,6 +565,10 @@ module.exports = {
           Sequelize.fn("SUM", Sequelize.col("beban_umum_operasional")),
           "beban_umum_operasional",
         ],
+        [
+          Sequelize.fn("SUM", Sequelize.col("penyusutan_aktiva")),
+          "penyusutan_aktiva",
+        ],
       ],
       group: ["year", "month"],
       raw: true,
@@ -571,6 +577,7 @@ module.exports = {
       const monthAgg = ensureAgregatMonth(b.year, b.month);
       monthAgg.total_gaji += parseFloat(b.gaji || 0);
       monthAgg.total_beban_umum_operasional += parseFloat(b.beban_umum_operasional || 0);
+      monthAgg.total_penyusutan_aktiva += parseFloat(b.penyusutan_aktiva || 0);
     });
 
     // ✅ Hitung rasio cabang (hasil rata-rata dari semua unit)
@@ -611,6 +618,7 @@ module.exports = {
           total_markup: item.total_markup,
           total_gaji: item.total_gaji,
           total_beban_umum_operasional: item.total_beban_umum_operasional,
+          total_penyusutan_aktiva: item.total_penyusutan_aktiva,
           // metrics:
           pembiayaan_per_unit: item.total_unit_jual > 0 ? item.total_pembiayaan / item.total_unit_jual : 0,
           penjualan_per_unit: item.total_unit > 0 ? item.total_penjualan / item.total_unit : 0,
@@ -619,6 +627,8 @@ module.exports = {
           gaji_per_karyawan: item.total_karyawan > 0 ? item.total_gaji / item.total_karyawan : 0,
           beban_umum_operasional_per_karyawan:
             item.total_karyawan > 0 ? item.total_beban_umum_operasional / item.total_karyawan : 0,
+          penyusutan_aktiva_per_karyawan:
+            item.total_karyawan > 0 ? item.total_penyusutan_aktiva / item.total_karyawan : 0,
         };
       });
     const cabangRateLima = hasilCabangPerBulan.map(item => ({
@@ -635,6 +645,13 @@ module.exports = {
       total_karyawan: item.total_karyawan,
       rate_beban_umum_operasional_per_karyawan: item.beban_umum_operasional_per_karyawan,
     }));
+    const cabangRateTujuh = hasilCabangPerBulan.map(item => ({
+      year: item.year,
+      month: item.month,
+      total_penyusutan_aktiva: item.total_penyusutan_aktiva,
+      total_karyawan: item.total_karyawan,
+      rate_penyusutan_aktiva_per_karyawan: item.penyusutan_aktiva_per_karyawan,
+    }));
 
 
     // ✅ Response akhir
@@ -647,6 +664,7 @@ module.exports = {
           rate_satu_dua_tiga_empat: hasilCabangPerBulan,
           rate_lima: cabangRateLima,
           rate_enam: cabangRateEnam,
+          rate_tujuh: cabangRateTujuh,
         },
         // cabang: hasilCabang,
         rate_satu_dua: dataPerEntity,
