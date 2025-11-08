@@ -233,10 +233,13 @@ module.exports = {
     const entityIds = await getAllDescendants(entity_id);
       console.log("Descendant Entity IDs:", entityIds);
     // ✅ Ambil semua data penjualan per entity (unit)
-    const dataPerEntity = {};
+    const rateSatu = {};
+    const rateDua = {};
     const rateTiga = {};
     const rateEmpat = {};
-    const rateLimaEnamTujuh = {};
+    const rateLima = {};
+    const rateEnam = {};
+    const rateTujuh = {};
     const agregatCabang = {
       total_pembiayaan: 0,
       total_unit_jual: 0,
@@ -328,6 +331,7 @@ module.exports = {
         attributes: ["entity_type"],
         raw: true,
       });
+      const entityType = entity?.entity_type?.toLowerCase() || "unknown";
 
       // "type": "unit",
       //           "year": 2025,
@@ -359,23 +363,29 @@ module.exports = {
         });
       });
 
-      dataPerEntity[name] = dataBulan.map(row => {
-        const sd = sumberDaya.find(s => s.year === row.year && s.month === row.month);
-        const jumlah_karyawan = parseFloat(sd?.jumlah_karyawan || 0);
-        const total_penjualan = parseFloat(row.total_penjualan || 0);
+      rateSatu[name] = dataBulan.map(row => {
+        const totalPembiayaan = parseFloat(row.total_pembiayaan || 0);
+        const totalUnitJual = parseFloat(row.total_unit_jual || 0);
         return {
-          type: entity?.entity_type?.toLowerCase() || "unknown",
+          type: entityType,
           year: row.year,
           month: row.month,
-          total_pembiayaan: parseFloat(row.total_pembiayaan || 0),
-          total_unit_jual: parseFloat(row.total_unit_jual || 0),
-          total_penjualan,
-          total_unit: parseFloat(row.total_unit || 0),
-          jumlah_karyawan,
-          // per-unit metrics for unit level:
-          pembiayaan_per_unit: row.total_unit_jual > 0 ? (parseFloat(row.total_pembiayaan || 0) / parseFloat(row.total_unit_jual || 0)) : 0,
-          penjualan_per_unit: row.total_unit > 0 ? (total_penjualan / parseFloat(row.total_unit || 0)) : 0,
-          penjualan_per_karyawan: jumlah_karyawan > 0 ? (total_penjualan / jumlah_karyawan) : 0,
+          total_pembiayaan: totalPembiayaan,
+          total_unit_jual: totalUnitJual,
+          pembiayaan_per_unit: totalUnitJual > 0 ? totalPembiayaan / totalUnitJual : 0,
+        };
+      });
+
+      rateDua[name] = dataBulan.map(row => {
+        const totalPenjualan = parseFloat(row.total_penjualan || 0);
+        const totalUnit = parseFloat(row.total_unit || 0);
+        return {
+          type: entityType,
+          year: row.year,
+          month: row.month,
+          total_penjualan: totalPenjualan,
+          total_unit: totalUnit,
+          penjualan_per_unit: totalUnit > 0 ? totalPenjualan / totalUnit : 0,
         };
       });
 
@@ -503,7 +513,7 @@ module.exports = {
       collectMonthKey(sumberDaya);
       collectMonthKey(bebanData);
 
-      const rateLimaResult = Array.from(monthKeyMap.values())
+      const rateBiayaData = Array.from(monthKeyMap.values())
         .sort((a, b) => a.year - b.year || a.month - b.month)
         .map(({ year: yearVal, month: monthVal }) => {
           const key = `${yearVal}-${monthVal}`;
@@ -531,7 +541,37 @@ module.exports = {
           };
         });
 
-      rateLimaEnamTujuh[name] = rateLimaResult;
+      rateLima[name] = rateBiayaData.map((item) => ({
+        type: entityType,
+        branch_id: item.branch_id,
+        year: item.year,
+        month: item.month,
+        gaji: item.gaji,
+        jumlah_karyawan: item.jumlah_karyawan,
+        rate_gaji_per_karyawan: item.rate_gaji_per_karyawan,
+      }));
+
+      rateEnam[name] = rateBiayaData.map((item) => ({
+        type: entityType,
+        branch_id: item.branch_id,
+        year: item.year,
+        month: item.month,
+        beban_umum_operasional: item.beban_umum_operasional,
+        jumlah_karyawan: item.jumlah_karyawan,
+        rate_beban_umum_operasional_per_karyawan:
+          item.rate_beban_umum_operasional_per_karyawan,
+      }));
+
+      rateTujuh[name] = rateBiayaData.map((item) => ({
+        type: entityType,
+        branch_id: item.branch_id,
+        year: item.year,
+        month: item.month,
+        penyusutan: item.penyusutan,
+        jumlah_karyawan: item.jumlah_karyawan,
+        rate_penyusutan_aktiva_per_karyawan:
+          item.rate_penyusutan_aktiva_per_karyawan,
+      }));
     }
 
     // Tambahkan data cabang utama (parent) ke agregat gaji & karyawan
@@ -631,7 +671,44 @@ module.exports = {
             item.total_karyawan > 0 ? item.total_penyusutan_aktiva / item.total_karyawan : 0,
         };
       });
+    const cabangRateSatu = hasilCabangPerBulan.map(item => ({
+      type: "cabang",
+      year: item.year,
+      month: item.month,
+      total_pembiayaan: item.total_pembiayaan,
+      total_unit_jual: item.total_unit_jual,
+      pembiayaan_per_unit: item.pembiayaan_per_unit,
+    }));
+
+    const cabangRateDua = hasilCabangPerBulan.map(item => ({
+      type: "cabang",
+      year: item.year,
+      month: item.month,
+      total_penjualan: item.total_penjualan,
+      total_unit: item.total_unit,
+      penjualan_per_unit: item.penjualan_per_unit,
+    }));
+
+    const cabangRateTiga = hasilCabangPerBulan.map(item => ({
+      type: "cabang",
+      year: item.year,
+      month: item.month,
+      total_penjualan: item.total_penjualan,
+      total_karyawan: item.total_karyawan,
+      penjualan_per_karyawan: item.penjualan_per_karyawan,
+    }));
+
+    const cabangRateEmpat = hasilCabangPerBulan.map(item => ({
+      type: "cabang",
+      year: item.year,
+      month: item.month,
+      total_markup: item.total_markup,
+      total_karyawan: item.total_karyawan,
+      markup_per_karyawan: item.mark_up_per_karyawan,
+    }));
+
     const cabangRateLima = hasilCabangPerBulan.map(item => ({
+      type: "cabang",
       year: item.year,
       month: item.month,
       total_gaji: item.total_gaji,
@@ -639,6 +716,7 @@ module.exports = {
       rate_gaji_per_karyawan: item.gaji_per_karyawan,
     }));
     const cabangRateEnam = hasilCabangPerBulan.map(item => ({
+      type: "cabang",
       year: item.year,
       month: item.month,
       total_beban_umum_operasional: item.total_beban_umum_operasional,
@@ -646,6 +724,7 @@ module.exports = {
       rate_beban_umum_operasional_per_karyawan: item.beban_umum_operasional_per_karyawan,
     }));
     const cabangRateTujuh = hasilCabangPerBulan.map(item => ({
+      type: "cabang",
       year: item.year,
       month: item.month,
       total_penyusutan_aktiva: item.total_penyusutan_aktiva,
@@ -661,16 +740,21 @@ module.exports = {
         entityIds,
         cabang: {
           name: cabang?.name || "CABANG",
-          rate_satu_dua_tiga_empat: hasilCabangPerBulan,
+          rate_satu: cabangRateSatu,
+          rate_dua: cabangRateDua,
+          rate_tiga: cabangRateTiga,
+          rate_empat: cabangRateEmpat,
           rate_lima: cabangRateLima,
           rate_enam: cabangRateEnam,
           rate_tujuh: cabangRateTujuh,
         },
-        // cabang: hasilCabang,
-        rate_satu_dua: dataPerEntity,
+        rate_satu: rateSatu,
+        rate_dua: rateDua,
         rate_tiga: rateTiga,
         rate_empat: rateEmpat,
-        rate_lima_enam_tujuh: rateLimaEnamTujuh,
+        rate_lima: rateLima,
+        rate_enam: rateEnam,
+        rate_tujuh: rateTujuh,
       });
     } catch (error) {
       console.error("Error in getRateSatuDua:", error);
