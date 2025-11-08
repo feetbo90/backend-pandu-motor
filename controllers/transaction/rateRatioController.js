@@ -247,6 +247,24 @@ module.exports = {
     // AGREGAT PER BULAN untuk seluruh unit di bawah cabang
     // key = `${year}-${month}`
     const agregatByMonth = {};
+    const ensureAgregatMonth = (aggYear, aggMonth) => {
+      const key = `${aggYear}-${aggMonth}`;
+      if (!agregatByMonth[key]) {
+        agregatByMonth[key] = {
+          year: aggYear,
+          month: aggMonth,
+          total_pembiayaan: 0,
+          total_unit_jual: 0,
+          total_penjualan: 0,
+          total_unit: 0,
+          total_karyawan: 0,
+          total_markup: 0,
+          total_gaji: 0,
+          total_beban_umum_operasional: 0,
+        };
+      }
+      return agregatByMonth[key];
+    };
 
     for (const entityItem of entityIds) {
       const { id, type, name } = entityItem || {};
@@ -330,6 +348,15 @@ module.exports = {
         group: ["year", "month"],
         raw: true,
       });
+      const sumberDayaMap = new Map();
+      sumberDaya.forEach((sd) => {
+        const key = `${sd.year}-${sd.month}`;
+        sumberDayaMap.set(key, {
+          year: sd.year,
+          month: sd.month,
+          jumlah_karyawan: parseFloat(sd.jumlah_karyawan || 0),
+        });
+      });
 
       dataPerEntity[name] = dataBulan.map(row => {
         const sd = sumberDaya.find(s => s.year === row.year && s.month === row.month);
@@ -361,41 +388,19 @@ module.exports = {
 
       // Tambahkan ke agregat cabang per bulan (sum across units)
       dataBulan.forEach(row => {
-        const key = `${row.year}-${row.month}`;
-        if (!agregatByMonth[key]) {
-          agregatByMonth[key] = {
-            year: row.year,
-            month: row.month,
-            total_pembiayaan: 0,
-            total_unit_jual: 0,
-            total_penjualan: 0,
-            total_unit: 0,
-            total_karyawan: 0, // akan kita tambahkan dari sumberDaya
-            total_markup: 0,
-          };
-        }
-        agregatByMonth[key].total_pembiayaan += parseFloat(row.total_pembiayaan || 0);
-        agregatByMonth[key].total_unit_jual += parseFloat(row.total_unit_jual || 0);
-        agregatByMonth[key].total_penjualan += parseFloat(row.total_penjualan || 0);
-        agregatByMonth[key].total_unit += parseFloat(row.total_unit || 0);
+        const monthAgg = ensureAgregatMonth(row.year, row.month);
+        monthAgg.total_pembiayaan += parseFloat(row.total_pembiayaan || 0);
+        monthAgg.total_unit_jual += parseFloat(row.total_unit_jual || 0);
+        monthAgg.total_penjualan += parseFloat(row.total_penjualan || 0);
+        monthAgg.total_unit += parseFloat(row.total_unit || 0);
       });
 
       // tambahkan jumlah karyawan unit ke agregatByMonth
       sumberDaya.forEach(sd => {
-        const key = `${sd.year}-${sd.month}`;
-        if (!agregatByMonth[key]) {
-          agregatByMonth[key] = {
-            year: sd.year,
-            month: sd.month,
-            total_pembiayaan: 0,
-            total_unit_jual: 0,
-            total_penjualan: 0,
-            total_unit: 0,
-            total_karyawan: 0,
-            total_markup: 0,
-          };
-        }
-        agregatByMonth[key].total_karyawan += parseFloat(sd.jumlah_karyawan || 0);
+        const monthAgg = ensureAgregatMonth(sd.year, sd.month);
+        const jumlahKaryawan = parseFloat(sd.jumlah_karyawan || 0);
+        monthAgg.total_karyawan += jumlahKaryawan;
+        agregatCabang.total_karyawan += jumlahKaryawan;
       });
 
       
@@ -435,20 +440,8 @@ module.exports = {
         const total_markup = parseFloat(p.total_markup || 0);
         
         
-        const key = `${sd.year}-${sd.month}`;
-        if (!agregatByMonth[key]) {
-          agregatByMonth[key] = {
-            year: sd.year,
-            month: sd.month,
-            total_pembiayaan: 0,
-            total_unit_jual: 0,
-            total_penjualan: 0,
-            total_unit: 0,
-            total_karyawan: 0,
-            total_markup: 0,
-          };
-        }
-        agregatByMonth[key].total_markup += parseFloat(total_markup || 0);
+        const monthAgg = ensureAgregatMonth(p.year, p.month);
+        monthAgg.total_markup += total_markup;
 
         return {
           year: p.year,
@@ -462,44 +455,123 @@ module.exports = {
       rateEmpat[name] = mergedEmpat;
 
       const bebanData = await Beban.findAll({
-        where: where,
-        attributes: ["year", "month", "gaji", "beban_umum_operasional", "penyusutan_aktiva"],
+        where,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("gaji")), "gaji"],
+          [
+            Sequelize.fn("SUM", Sequelize.col("beban_umum_operasional")),
+            "beban_umum_operasional",
+          ],
+          [
+            Sequelize.fn("SUM", Sequelize.col("penyusutan_aktiva")),
+            "penyusutan_aktiva",
+          ],
+        ],
+        group: ["year", "month"],
         raw: true,
       });
+      const bebanMap = new Map();
+      bebanData.forEach((b) => {
+        const key = `${b.year}-${b.month}`;
+        const gajiValue = parseFloat(b.gaji || 0);
+        bebanMap.set(key, {
+          gaji: gajiValue,
+          beban_umum_operasional: parseFloat(b.beban_umum_operasional || 0),
+          penyusutan_aktiva: parseFloat(b.penyusutan_aktiva || 0),
+        });
 
-      // gabungkan data dengan jumlah karyawan
-    const result = pendapatan.map((p) => {
-      const b = bebanData.find(
-        (item) =>
-          item.branch_id === p.branch_id &&
-          item.year === p.year &&
-          item.month === p.month
-      );  
-
-      const sd = sumberDaya.find((s) => s.year === p.year && s.month === p.month);
-        const jumlah_karyawan = sd?.jumlah_karyawan || 0;
-      
-
-        return {
-          branch_id: p.branch_id,
-          year: p.year,
-          month: p.month,
-          gaji: Number(b?.gaji) || 0,
-          beban_umum_operasional: Number(b?.beban_umum_operasional) || 0,
-          penyusutan_aktiva: Number(b?.penyusutan_aktiva) || 0,
-          jumlah_karyawan: jumlah_karyawan,
-
-          // RATE 4, 5, 6, 7
-          rate_gaji_per_karyawan:
-            jumlah_karyawan > 0 ? (Number(b?.gaji) / jumlah_karyawan) : 0,
-          rate_beban_umum_operasional_per_karyawan:
-            jumlah_karyawan > 0 ? (Number(b?.beban_umum_operasional) / jumlah_karyawan) : 0,
-          rate_penyusutan_aktiva_per_karyawan: 
-            jumlah_karyawan > 0 ? (Number(b?.penyusutan_aktiva) / jumlah_karyawan) : 0, 
-        };
+        const monthAgg = ensureAgregatMonth(b.year, b.month);
+        monthAgg.total_gaji += gajiValue;
+        monthAgg.total_beban_umum_operasional += parseFloat(b.beban_umum_operasional || 0);
       });
-      rateLimaEnamTujuh[name] = result;
+
+      const monthKeyMap = new Map();
+      const collectMonthKey = (items = []) => {
+        items.forEach((item) => {
+          if (item?.year === undefined || item?.month === undefined) return;
+          const key = `${item.year}-${item.month}`;
+          if (!monthKeyMap.has(key)) {
+            monthKeyMap.set(key, { year: item.year, month: item.month });
+          }
+        });
+      };
+      collectMonthKey(dataBulan);
+      collectMonthKey(sumberDaya);
+      collectMonthKey(bebanData);
+
+      const rateLimaResult = Array.from(monthKeyMap.values())
+        .sort((a, b) => a.year - b.year || a.month - b.month)
+        .map(({ year: yearVal, month: monthVal }) => {
+          const key = `${yearVal}-${monthVal}`;
+          const sd = sumberDayaMap.get(key);
+          const beban = bebanMap.get(key);
+          const jumlah_karyawan = sd?.jumlah_karyawan || 0;
+          const gaji = beban?.gaji || 0;
+          const bebanUmum = beban?.beban_umum_operasional || 0;
+          const penyusutan = beban?.penyusutan_aktiva || 0;
+
+          return {
+            branch_id: id,
+            year: yearVal,
+            month: monthVal,
+            gaji,
+            beban_umum_operasional: bebanUmum,
+            penyusutan,
+            jumlah_karyawan,
+            rate_gaji_per_karyawan:
+              jumlah_karyawan > 0 ? gaji / jumlah_karyawan : 0,
+            rate_beban_umum_operasional_per_karyawan:
+              jumlah_karyawan > 0 ? bebanUmum / jumlah_karyawan : 0,
+            rate_penyusutan_aktiva_per_karyawan:
+              jumlah_karyawan > 0 ? penyusutan / jumlah_karyawan : 0,
+          };
+        });
+
+      rateLimaEnamTujuh[name] = rateLimaResult;
     }
+
+    // Tambahkan data cabang utama (parent) ke agregat gaji & karyawan
+    const cabangWhere = { branch_id: entity_id, year, is_active: true };
+    if (month) cabangWhere.month = month;
+
+    const cabangSumberDaya = await SumberDaya.findAll({
+      where: cabangWhere,
+      attributes: [
+        "year",
+        "month",
+        [Sequelize.fn("SUM", Sequelize.col("jumlah_karyawan")), "jumlah_karyawan"],
+      ],
+      group: ["year", "month"],
+      raw: true,
+    });
+    cabangSumberDaya.forEach((sd) => {
+      const monthAgg = ensureAgregatMonth(sd.year, sd.month);
+      const jumlahKaryawan = parseFloat(sd.jumlah_karyawan || 0);
+      monthAgg.total_karyawan += jumlahKaryawan;
+      agregatCabang.total_karyawan += jumlahKaryawan;
+    });
+
+    const cabangBeban = await Beban.findAll({
+      where: cabangWhere,
+      attributes: [
+        "year",
+        "month",
+        [Sequelize.fn("SUM", Sequelize.col("gaji")), "gaji"],
+        [
+          Sequelize.fn("SUM", Sequelize.col("beban_umum_operasional")),
+          "beban_umum_operasional",
+        ],
+      ],
+      group: ["year", "month"],
+      raw: true,
+    });
+    cabangBeban.forEach((b) => {
+      const monthAgg = ensureAgregatMonth(b.year, b.month);
+      monthAgg.total_gaji += parseFloat(b.gaji || 0);
+      monthAgg.total_beban_umum_operasional += parseFloat(b.beban_umum_operasional || 0);
+    });
 
     // ✅ Hitung rasio cabang (hasil rata-rata dari semua unit)
     const cabang = await Entities.findOne({
@@ -537,13 +609,32 @@ module.exports = {
           total_unit: item.total_unit,
           total_karyawan: item.total_karyawan,
           total_markup: item.total_markup,
+          total_gaji: item.total_gaji,
+          total_beban_umum_operasional: item.total_beban_umum_operasional,
           // metrics:
           pembiayaan_per_unit: item.total_unit_jual > 0 ? item.total_pembiayaan / item.total_unit_jual : 0,
           penjualan_per_unit: item.total_unit > 0 ? item.total_penjualan / item.total_unit : 0,
           penjualan_per_karyawan: item.total_karyawan > 0 ? item.total_penjualan / item.total_karyawan : 0,
-          mark_up_per_karyawan: item.total_markup > 0 ? item.total_markup / item.total_karyawan: 0,
+          mark_up_per_karyawan: item.total_karyawan > 0 ? item.total_markup / item.total_karyawan : 0,
+          gaji_per_karyawan: item.total_karyawan > 0 ? item.total_gaji / item.total_karyawan : 0,
+          beban_umum_operasional_per_karyawan:
+            item.total_karyawan > 0 ? item.total_beban_umum_operasional / item.total_karyawan : 0,
         };
       });
+    const cabangRateLima = hasilCabangPerBulan.map(item => ({
+      year: item.year,
+      month: item.month,
+      total_gaji: item.total_gaji,
+      total_karyawan: item.total_karyawan,
+      rate_gaji_per_karyawan: item.gaji_per_karyawan,
+    }));
+    const cabangRateEnam = hasilCabangPerBulan.map(item => ({
+      year: item.year,
+      month: item.month,
+      total_beban_umum_operasional: item.total_beban_umum_operasional,
+      total_karyawan: item.total_karyawan,
+      rate_beban_umum_operasional_per_karyawan: item.beban_umum_operasional_per_karyawan,
+    }));
 
 
     // ✅ Response akhir
@@ -551,7 +642,12 @@ module.exports = {
         success: true,
         entity_id,
         entityIds,
-        cabang: { name: cabang?.name || "CABANG", rate_satu_dua_tiga: hasilCabangPerBulan },
+        cabang: {
+          name: cabang?.name || "CABANG",
+          rate_satu_dua_tiga_empat: hasilCabangPerBulan,
+          rate_lima: cabangRateLima,
+          rate_enam: cabangRateEnam,
+        },
         // cabang: hasilCabang,
         rate_satu_dua: dataPerEntity,
         rate_tiga: rateTiga,
