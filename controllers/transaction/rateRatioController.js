@@ -817,6 +817,28 @@ module.exports = {
       const rasioSembilan = {};
       const rasioSepuluh = {};
       const rasioSebelas = {};
+      const cabangRatioAggregates = {};
+      const formatFixed = (value, digits = 1) => Number(value || 0).toFixed(digits);
+      const ensureCabangRatioMonth = (ratioYear, ratioMonth) => {
+        const key = `${ratioYear}-${ratioMonth}`;
+        if (!cabangRatioAggregates[key]) {
+          cabangRatioAggregates[key] = {
+            year: ratioYear,
+            month: ratioMonth,
+            pembiayaan: 0,
+            realisasi_pokok: 0,
+            total_markup: 0,
+            realisasi_bunga: 0,
+            jumlah_pendapatan: 0,
+            denda: 0,
+            administrasi: 0,
+            total_sirkulasi: 0,
+            gaji: 0,
+            beban_umum_operasional: 0,
+          };
+        }
+        return cabangRatioAggregates[key];
+      };
 
       for (const entityItem of entityIds) {
         const { id, type, name } = entityItem || {};
@@ -838,6 +860,10 @@ module.exports = {
           order: [["year", "ASC"], ["month", "ASC"]],
           raw: true,
         });
+        penjualanData.forEach((row) => {
+          const bucket = ensureCabangRatioMonth(row.year, row.month);
+          bucket.pembiayaan += parseFloat(row.pembiayaan || 0);
+        });
 
         // --- Ambil data Piutang (realisasi_pokok) ---
         const piutangData = await Piutang.findAll({
@@ -849,6 +875,10 @@ module.exports = {
           ],
           group: ["year", "month"],
           raw: true,
+        });
+        piutangData.forEach((row) => {
+          const bucket = ensureCabangRatioMonth(row.year, row.month);
+          bucket.realisasi_pokok += parseFloat(row.realisasi_pokok || 0);
         });
 
         // --- Gabungkan data penjualan dan piutang berdasarkan tahun & bulan ---
@@ -887,6 +917,14 @@ module.exports = {
           group: ["year", "month"],
           raw: true,
         });
+        pendapatan.forEach((pend) => {
+          const bucket = ensureCabangRatioMonth(pend.year, pend.month);
+          bucket.total_markup += parseFloat(pend.total_markup || 0);
+          bucket.realisasi_bunga += parseFloat(pend.realisasi_bunga || 0);
+          bucket.jumlah_pendapatan += parseFloat(pend.jumlah_pendapatan || 0);
+          bucket.denda += parseFloat(pend.denda || 0);
+          bucket.administrasi += parseFloat(pend.administrasi || 0);
+        });
 
         const mergedData = pendapatan.map((pend) => {
           const matchPenjualan = penjualanData.find(
@@ -920,6 +958,10 @@ module.exports = {
           ],
           group: ["year", "month"],
           raw: true,
+        });
+        sirkulasiPiutang.forEach((row) => {
+          const bucket = ensureCabangRatioMonth(row.year, row.month);
+          bucket.total_sirkulasi += parseFloat(row.total || 0);
         });
 
         const mergedPendapatanSirkulasi = pendapatan.map((pend) => {
@@ -1006,13 +1048,24 @@ module.exports = {
       rasioTujuh[name] = mergedRasioDendaAdministrasiPerJmlhPendapatan;
 
       const beban = await Beban.findAll({
-          where: where,
-          attributes: ["year", "month", "gaji", "beban_umum_operasional", "penyusutan_aktiva"],
-          raw: true,
-        });
+        where: where,
+        attributes: ["year", "month", "gaji", "beban_umum_operasional", "penyusutan_aktiva"],
+        raw: true,
+      });
+      beban.forEach((b) => {
+        const bucket = ensureCabangRatioMonth(b.year, b.month);
+        bucket.gaji += parseFloat(b.gaji || 0);
+        bucket.beban_umum_operasional += parseFloat(b.beban_umum_operasional || 0);
+      });
+      const bebanMap = new Map();
+      beban.forEach((row) => {
+        bebanMap.set(`${row.year}-${row.month}`, row);
+      });
 
       const mergedGajiPerPendapatan = pendapatan.map((pend) => {
-          const gaji = parseFloat(beban.gaji || 0);
+          const key = `${pend.year}-${pend.month}`;
+          const bebanRow = bebanMap.get(key);
+          const gaji = parseFloat(bebanRow?.gaji || 0);
           const jumlah_pendapatan = parseFloat(pend?.jumlah_pendapatan || 0);
           const rasio_gaji_per_pendapatan = jumlah_pendapatan > 0 ? (gaji /jumlah_pendapatan) * 100 : 0;
 
@@ -1028,7 +1081,9 @@ module.exports = {
       });
       rasioDelapan[name] = mergedGajiPerPendapatan;
       const mergedBebanOperasionalPerPendapatan = pendapatan.map((pend) => {
-        const beban_umum_operasional = parseFloat(beban.beban_umum_operasional || 0);
+        const key = `${pend.year}-${pend.month}`;
+        const bebanRow = bebanMap.get(key);
+        const beban_umum_operasional = parseFloat(bebanRow?.beban_umum_operasional || 0);
         const jumlah_pendapatan = parseFloat(pend?.jumlah_pendapatan || 0);
         const rasio_beban_operasional_per_pendapatan = jumlah_pendapatan > 0 ? (beban_umum_operasional / jumlah_pendapatan) * 100 : 0;
 
@@ -1044,11 +1099,250 @@ module.exports = {
       rasioSembilan[name] = mergedBebanOperasionalPerPendapatan;
       }
 
+      // Tambahkan kontribusi cabang utama ke agregat
+      const cabangWhere = { branch_id: entity_id, year, is_active: true };
+      if (month) cabangWhere.month = month;
+
+      const cabangPenjualan = await Penjualan.findAll({
+        where: cabangWhere,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.literal("kredit + leasing")), "pembiayaan"],
+        ],
+        group: ["year", "month"],
+        raw: true,
+      });
+      cabangPenjualan.forEach((row) => {
+        const bucket = ensureCabangRatioMonth(row.year, row.month);
+        bucket.pembiayaan += parseFloat(row.pembiayaan || 0);
+      });
+
+      const cabangPiutang = await Piutang.findAll({
+        where: cabangWhere,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "realisasi_pokok"],
+        ],
+        group: ["year", "month"],
+        raw: true,
+      });
+      cabangPiutang.forEach((row) => {
+        const bucket = ensureCabangRatioMonth(row.year, row.month);
+        bucket.realisasi_pokok += parseFloat(row.realisasi_pokok || 0);
+      });
+
+      const cabangPendapatan = await Pendapatan.findAll({
+        where: cabangWhere,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("markup_jumlah")), "total_markup"],
+          [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "realisasi_bunga"],
+          [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan")), "jumlah_pendapatan"],
+          [Sequelize.fn("SUM", Sequelize.col("denda")), "denda"],
+          [Sequelize.fn("SUM", Sequelize.col("administrasi")), "administrasi"],
+        ],
+        group: ["year", "month"],
+        raw: true,
+      });
+      cabangPendapatan.forEach((row) => {
+        const bucket = ensureCabangRatioMonth(row.year, row.month);
+        bucket.total_markup += parseFloat(row.total_markup || 0);
+        bucket.realisasi_bunga += parseFloat(row.realisasi_bunga || 0);
+        bucket.jumlah_pendapatan += parseFloat(row.jumlah_pendapatan || 0);
+        bucket.denda += parseFloat(row.denda || 0);
+        bucket.administrasi += parseFloat(row.administrasi || 0);
+      });
+
+      const cabangSirkulasi = await SirkulasiPiutang.findAll({
+        where: cabangWhere,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("total")), "total"],
+        ],
+        group: ["year", "month"],
+        raw: true,
+      });
+      cabangSirkulasi.forEach((row) => {
+        const bucket = ensureCabangRatioMonth(row.year, row.month);
+        bucket.total_sirkulasi += parseFloat(row.total || 0);
+      });
+
+      const cabangBeban = await Beban.findAll({
+        where: cabangWhere,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("gaji")), "gaji"],
+          [
+            Sequelize.fn("SUM", Sequelize.col("beban_umum_operasional")),
+            "beban_umum_operasional",
+          ],
+        ],
+        group: ["year", "month"],
+        raw: true,
+      });
+      cabangBeban.forEach((row) => {
+        const bucket = ensureCabangRatioMonth(row.year, row.month);
+        bucket.gaji += parseFloat(row.gaji || 0);
+        bucket.beban_umum_operasional += parseFloat(row.beban_umum_operasional || 0);
+      });
+
+      const cabangRatioMonths = Object.values(cabangRatioAggregates).sort(
+        (a, b) => a.year - b.year || a.month - b.month
+      );
+
+      const cabangRasioSatu = cabangRatioMonths.map((item) => {
+        const pembiayaan = parseFloat(item.pembiayaan || 0);
+        const realisasiPokok = parseFloat(item.realisasi_pokok || 0);
+        const ratio =
+          realisasiPokok > 0 ? (pembiayaan / realisasiPokok) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          pembiayaan,
+          realisasi_pokok: realisasiPokok,
+          pembiayaan_per_realisasi_pokok: ratio + " %",
+        };
+      });
+
+      const cabangRasioTiga = cabangRatioMonths.map((item) => {
+        const totalMarkup = parseFloat(item.total_markup || 0);
+        const pembiayaan = parseFloat(item.pembiayaan || 0);
+        const rasioMarkup =
+          pembiayaan > 0 ? (totalMarkup / pembiayaan) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          total_markup: formatFixed(totalMarkup),
+          pembiayaan: formatFixed(pembiayaan),
+          rasio_markup: formatFixed(rasioMarkup, 2),
+        };
+      });
+
+      const cabangRasioEmpat = cabangRatioMonths.map((item) => {
+        const realisasiBunga = parseFloat(item.realisasi_bunga || 0);
+        const totalSirkulasi = parseFloat(item.total_sirkulasi || 0);
+        const rasioEmpat =
+          totalSirkulasi > 0 ? (realisasiBunga / totalSirkulasi) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          realisasi_bunga: formatFixed(realisasiBunga),
+          total: formatFixed(totalSirkulasi),
+          rasio_realisasi_bunga_per_total_piutang: formatFixed(rasioEmpat, 2),
+        };
+      });
+
+      const cabangRasioLima = cabangRatioMonths.map((item) => {
+        const totalMarkup = parseFloat(item.total_markup || 0);
+        const jumlahPendapatan = parseFloat(item.jumlah_pendapatan || 0);
+        const rasioLima =
+          jumlahPendapatan > 0 ? (totalMarkup / jumlahPendapatan) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          jumlah_pendapatan: formatFixed(jumlahPendapatan),
+          total_markup: formatFixed(totalMarkup),
+          rasio_markup_per_jumlah_pendapatan: formatFixed(rasioLima, 2),
+        };
+      });
+
+      const cabangRasioEnam = cabangRatioMonths.map((item) => {
+        const realisasiBunga = parseFloat(item.realisasi_bunga || 0);
+        const jumlahPendapatan = parseFloat(item.jumlah_pendapatan || 0);
+        const rasioEnam =
+          jumlahPendapatan > 0 ? (realisasiBunga / jumlahPendapatan) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          jumlah_pendapatan: formatFixed(jumlahPendapatan),
+          realisasi_bunga: formatFixed(realisasiBunga),
+          rasio_pendapatan_bunga_per_jumlah_pendapatan: formatFixed(rasioEnam, 2),
+        };
+      });
+
+      const cabangRasioTujuh = cabangRatioMonths.map((item) => {
+        const denda = parseFloat(item.denda || 0);
+        const administrasi = parseFloat(item.administrasi || 0);
+        const jumlahPendapatan = parseFloat(item.jumlah_pendapatan || 0);
+        const pendapatanLainnya = denda + administrasi;
+        const rasioTujuh =
+          jumlahPendapatan > 0 ? (pendapatanLainnya / jumlahPendapatan) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          jumlah_pendapatan: formatFixed(jumlahPendapatan),
+          denda: formatFixed(denda),
+          administrasi: formatFixed(administrasi),
+          rasio_pendapatan_lainnya_per_jumlah_pendapatan: formatFixed(rasioTujuh, 2),
+        };
+      });
+
+      const cabangRasioDelapan = cabangRatioMonths.map((item) => {
+        const gaji = parseFloat(item.gaji || 0);
+        const jumlahPendapatan = parseFloat(item.jumlah_pendapatan || 0);
+        const rasioDelapan =
+          jumlahPendapatan > 0 ? (gaji / jumlahPendapatan) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          jumlah_pendapatan: formatFixed(jumlahPendapatan),
+          gaji,
+          rasio_gaji_per_pendapatan: formatFixed(rasioDelapan, 2),
+        };
+      });
+
+      const cabangRasioSembilan = cabangRatioMonths.map((item) => {
+        const bebanUmum = parseFloat(item.beban_umum_operasional || 0);
+        const jumlahPendapatan = parseFloat(item.jumlah_pendapatan || 0);
+        const rasioSembilanVal =
+          jumlahPendapatan > 0 ? (bebanUmum / jumlahPendapatan) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          jumlah_pendapatan: formatFixed(jumlahPendapatan),
+          beban_umum_operasional: formatFixed(bebanUmum),
+          rasio_beban_operasional_per_pendapatan: formatFixed(rasioSembilanVal, 2),
+        };
+      });
+
+      const cabangRatios = {
+        rasioSatu: cabangRasioSatu,
+        rasioTiga: cabangRasioTiga,
+        rasioEmpat: cabangRasioEmpat,
+        rasioLima: cabangRasioLima,
+        rasioEnam: cabangRasioEnam,
+        rasioTujuh: cabangRasioTujuh,
+        rasioDelapan: cabangRasioDelapan,
+        rasioSembilan: cabangRasioSembilan,
+      };
+
       // --- Kembalikan hasil akhir ---
       return res.json({
         success: true,
         entity_id,
         entityIds,
+        cabang: cabangRatios,
         rasioSatu,
         rasioTiga,
         rasioEmpat,
