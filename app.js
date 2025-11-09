@@ -7,6 +7,7 @@ const PORT = process.env.PORT || 3000;
 // routes
 const authRoutes = require("./routes/authRoutes");
 const entityRoutes = require("./routes/entityRoutes");
+const entitiesRoutes = require("./routes/entitiesRoutes");
 const periodRoutes = require("./routes/periodRoutes");
 const inputUnitRoutes = require("./routes/inputUnitRoutes");
 const penjualanRoutes = require("./routes/penjualanRoutes");
@@ -58,6 +59,7 @@ app.get("/", (req, res) => {
 // register routes
 app.use("/api/auth", authRoutes);
 app.use("/api/entities", entityRoutes);
+app.use("/api/entity", entitiesRoutes);
 app.use("/api/periods", periodRoutes);
 app.use("/api/units", inputUnitRoutes);
 app.use("/api/penjualan", penjualanRoutes);
