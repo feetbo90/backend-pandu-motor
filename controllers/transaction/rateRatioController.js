@@ -892,6 +892,7 @@ module.exports = {
 
       // ✅ Struktur hasil
       const rasioSatu = {};
+      const rasioDua = {};
       const rasioTiga = {};
       const rasioEmpat = {};
       const rasioLima = {};
@@ -902,6 +903,7 @@ module.exports = {
       const rasioSepuluh = {};
       const rasioSebelas = {};
       const cabangRatioAggregates = {};
+      const cabangRatioDuaAggregates = {};
       const formatFixed = (value, digits = 1) => Number(value || 0).toFixed(digits);
       const ensureCabangRatioMonth = (ratioYear, ratioMonth) => {
         const key = `${ratioYear}-${ratioMonth}`;
@@ -919,9 +921,24 @@ module.exports = {
             total_sirkulasi: 0,
             gaji: 0,
             beban_umum_operasional: 0,
+            penyusutan_aktiva: 0,
+            cadangan_piutang: 0,
           };
         }
         return cabangRatioAggregates[key];
+      };
+      const ensureCabangRatioDuaMonth = (ratioYear, ratioMonth) => {
+        const key = `${ratioYear}-${ratioMonth}`;
+        if (!cabangRatioDuaAggregates[key]) {
+          cabangRatioDuaAggregates[key] = {
+            year: ratioYear,
+            month: ratioMonth,
+            macet_lama: 0,
+            stock_kredit: 0,
+            leasing: 0,
+          };
+        }
+        return cabangRatioDuaAggregates[key];
       };
 
       for (const entityItem of entityIds) {
@@ -939,14 +956,22 @@ module.exports = {
             "year",
             "month",
             [Sequelize.fn("SUM", Sequelize.literal("kredit + leasing")), "pembiayaan"],
+            [Sequelize.fn("SUM", Sequelize.col("kredit")), "total_kredit"],
+            [Sequelize.fn("SUM", Sequelize.col("leasing")), "total_leasing"],
           ],
           group: ["year", "month"],
           order: [["year", "ASC"], ["month", "ASC"]],
           raw: true,
         });
+        const penjualanMap = new Map();
         penjualanData.forEach((row) => {
           const bucket = ensureCabangRatioMonth(row.year, row.month);
           bucket.pembiayaan += parseFloat(row.pembiayaan || 0);
+          penjualanMap.set(`${row.year}-${row.month}`, row);
+
+          const ratioDuaBucket = ensureCabangRatioDuaMonth(row.year, row.month);
+          ratioDuaBucket.stock_kredit += parseFloat(row.total_kredit || 0);
+          ratioDuaBucket.leasing += parseFloat(row.total_leasing || 0);
         });
 
         // --- Ambil data Piutang (realisasi_pokok) ---
@@ -956,6 +981,7 @@ module.exports = {
             "year",
             "month",
             [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "realisasi_pokok"],
+            [Sequelize.fn("SUM", Sequelize.col("jumlah_angsuran")), "jumlah_angsuran"],
           ],
           group: ["year", "month"],
           raw: true,
@@ -1039,6 +1065,7 @@ module.exports = {
             "year",
             "month",
             [Sequelize.fn("SUM", Sequelize.col("total")), "total"],
+            [Sequelize.fn("SUM", Sequelize.col("macet_lama")), "macet_lama"],
           ],
           group: ["year", "month"],
           raw: true,
@@ -1046,7 +1073,31 @@ module.exports = {
         sirkulasiPiutang.forEach((row) => {
           const bucket = ensureCabangRatioMonth(row.year, row.month);
           bucket.total_sirkulasi += parseFloat(row.total || 0);
+
+          const ratioDuaBucket = ensureCabangRatioDuaMonth(row.year, row.month);
+          ratioDuaBucket.macet_lama += parseFloat(row.macet_lama || 0);
         });
+
+        const mergedKemacetan = sirkulasiPiutang.map((row) => {
+          const macetLama = parseFloat(row.macet_lama || 0);
+          const penjualanRow = penjualanMap.get(`${row.year}-${row.month}`) || {};
+          const stockKredit = parseFloat(penjualanRow.total_kredit || 0);
+          const leasingValue = parseFloat(penjualanRow.total_leasing || 0);
+          const totalStock = stockKredit + leasingValue;
+          const rasio_kemacetan =
+            totalStock > 0 ? (macetLama / totalStock) * 100 : 0;
+
+          return {
+            type: type.toLowerCase(),
+            year: row.year,
+            month: row.month,
+            macet_lama: macetLama.toFixed(1),
+            stock_kredit: stockKredit.toFixed(1),
+            leasing: leasingValue.toFixed(1),
+            rasio_kemacetan_pembiayaan: rasio_kemacetan.toFixed(2),
+          };
+        });
+        rasioDua[name] = mergedKemacetan;
 
         const mergedPendapatanSirkulasi = pendapatan.map((pend) => {
           const matchSirkulasi = sirkulasiPiutang.find(
@@ -1133,13 +1184,15 @@ module.exports = {
 
       const beban = await Beban.findAll({
         where: where,
-        attributes: ["year", "month", "gaji", "beban_umum_operasional", "penyusutan_aktiva"],
+        attributes: ["year", "month", "gaji", "beban_umum_operasional", "penyusutan_aktiva", "cadangan_piutang"],
         raw: true,
       });
       beban.forEach((b) => {
         const bucket = ensureCabangRatioMonth(b.year, b.month);
         bucket.gaji += parseFloat(b.gaji || 0);
         bucket.beban_umum_operasional += parseFloat(b.beban_umum_operasional || 0);
+        bucket.penyusutan_aktiva += parseFloat(b.penyusutan_aktiva || 0);
+        bucket.cadangan_piutang += parseFloat(b.cadangan_piutang || 0);
       });
       const bebanMap = new Map();
       beban.forEach((row) => {
@@ -1181,6 +1234,42 @@ module.exports = {
         };
       });
       rasioSembilan[name] = mergedBebanOperasionalPerPendapatan;
+      const mergedPenyusutanPerPendapatan = pendapatan.map((pend) => {
+        const key = `${pend.year}-${pend.month}`;
+        const bebanRow = bebanMap.get(key);
+        const penyusutan_aktiva = parseFloat(bebanRow?.penyusutan_aktiva || 0);
+        const jumlah_pendapatan = parseFloat(pend?.jumlah_pendapatan || 0);
+        const rasio_penyusutan_per_pendapatan =
+          jumlah_pendapatan > 0 ? (penyusutan_aktiva / jumlah_pendapatan) * 100 : 0;
+
+        return {
+          type: type.toLowerCase(),
+          year: pend.year,
+          month: pend.month,
+          jumlah_pendapatan: jumlah_pendapatan.toFixed(1),
+          penyusutan_aktiva: penyusutan_aktiva.toFixed(1),
+          rasio_penyusutan_aktiva_per_jumlah_pendapatan: rasio_penyusutan_per_pendapatan.toFixed(2),
+        };
+      });
+      rasioSepuluh[name] = mergedPenyusutanPerPendapatan;
+      const mergedCadanganPerPendapatan = pendapatan.map((pend) => {
+        const key = `${pend.year}-${pend.month}`;
+        const bebanRow = bebanMap.get(key);
+        const cadangan_piutang = parseFloat(bebanRow?.cadangan_piutang || 0);
+        const jumlah_pendapatan = parseFloat(pend?.jumlah_pendapatan || 0);
+        const rasio_cadangan_per_pendapatan =
+          jumlah_pendapatan > 0 ? (cadangan_piutang / jumlah_pendapatan) * 100 : 0;
+
+        return {
+          type: type.toLowerCase(),
+          year: pend.year,
+          month: pend.month,
+          jumlah_pendapatan: jumlah_pendapatan.toFixed(1),
+          cadangan_piutang: cadangan_piutang.toFixed(1),
+          rasio_cadangan_piutang_per_jumlah_pendapatan: rasio_cadangan_per_pendapatan.toFixed(2),
+        };
+      });
+      rasioSebelas[name] = mergedCadanganPerPendapatan;
       }
 
       // Tambahkan kontribusi cabang utama ke agregat
@@ -1265,6 +1354,14 @@ module.exports = {
             Sequelize.fn("SUM", Sequelize.col("beban_umum_operasional")),
             "beban_umum_operasional",
           ],
+          [
+            Sequelize.fn("SUM", Sequelize.col("penyusutan_aktiva")),
+            "penyusutan_aktiva",
+          ],
+          [
+            Sequelize.fn("SUM", Sequelize.col("cadangan_piutang")),
+            "cadangan_piutang",
+          ],
         ],
         group: ["year", "month"],
         raw: true,
@@ -1273,6 +1370,8 @@ module.exports = {
         const bucket = ensureCabangRatioMonth(row.year, row.month);
         bucket.gaji += parseFloat(row.gaji || 0);
         bucket.beban_umum_operasional += parseFloat(row.beban_umum_operasional || 0);
+        bucket.penyusutan_aktiva += parseFloat(row.penyusutan_aktiva || 0);
+        bucket.cadangan_piutang += parseFloat(row.cadangan_piutang || 0);
       });
 
       const cabangRatioMonths = Object.values(cabangRatioAggregates).sort(
@@ -1292,6 +1391,28 @@ module.exports = {
           pembiayaan,
           realisasi_pokok: realisasiPokok,
           pembiayaan_per_realisasi_pokok: ratio + " %",
+        };
+      });
+
+      const cabangRasioDuaMonths = Object.values(cabangRatioDuaAggregates).sort(
+        (a, b) => a.year - b.year || a.month - b.month
+      );
+      const cabangRasioDua = cabangRasioDuaMonths.map((item) => {
+        const macetLama = parseFloat(item.macet_lama || 0);
+        const stockKredit = parseFloat(item.stock_kredit || 0);
+        const leasingValue = parseFloat(item.leasing || 0);
+        const totalStock = stockKredit + leasingValue;
+        const rasioKemacetan =
+          totalStock > 0 ? (macetLama / totalStock) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          macet_lama: formatFixed(macetLama),
+          stock_kredit: formatFixed(stockKredit),
+          leasing: formatFixed(leasingValue),
+          rasio_kemacetan_pembiayaan: formatFixed(rasioKemacetan, 2),
         };
       });
 
@@ -1409,9 +1530,40 @@ module.exports = {
           rasio_beban_operasional_per_pendapatan: formatFixed(rasioSembilanVal, 2),
         };
       });
+      const cabangRasioSepuluh = cabangRatioMonths.map((item) => {
+        const penyusutan = parseFloat(item.penyusutan_aktiva || 0);
+        const jumlahPendapatan = parseFloat(item.jumlah_pendapatan || 0);
+        const rasioSepuluhVal =
+          jumlahPendapatan > 0 ? (penyusutan / jumlahPendapatan) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          jumlah_pendapatan: formatFixed(jumlahPendapatan),
+          penyusutan_aktiva: formatFixed(penyusutan),
+          rasio_penyusutan_aktiva_per_jumlah_pendapatan: formatFixed(rasioSepuluhVal, 2),
+        };
+      });
+      const cabangRasioSebelas = cabangRatioMonths.map((item) => {
+        const cadanganPiutang = parseFloat(item.cadangan_piutang || 0);
+        const jumlahPendapatan = parseFloat(item.jumlah_pendapatan || 0);
+        const rasioSebelasVal =
+          jumlahPendapatan > 0 ? (cadanganPiutang / jumlahPendapatan) * 100 : 0;
+
+        return {
+          type: "cabang",
+          year: item.year,
+          month: item.month,
+          jumlah_pendapatan: formatFixed(jumlahPendapatan),
+          cadangan_piutang: formatFixed(cadanganPiutang),
+          rasio_cadangan_piutang_per_jumlah_pendapatan: formatFixed(rasioSebelasVal, 2),
+        };
+      });
 
       const cabangRatios = {
         rasioSatu: cabangRasioSatu,
+        rasioDua: cabangRasioDua,
         rasioTiga: cabangRasioTiga,
         rasioEmpat: cabangRasioEmpat,
         rasioLima: cabangRasioLima,
@@ -1419,6 +1571,8 @@ module.exports = {
         rasioTujuh: cabangRasioTujuh,
         rasioDelapan: cabangRasioDelapan,
         rasioSembilan: cabangRasioSembilan,
+        rasioSepuluh: cabangRasioSepuluh,
+        rasioSebelas: cabangRasioSebelas,
       };
 
       // --- Kembalikan hasil akhir ---
@@ -1428,13 +1582,16 @@ module.exports = {
         entityIds,
         cabang: cabangRatios,
         rasioSatu,
+        rasioDua,
         rasioTiga,
         rasioEmpat,
         rasioLima,
         rasioEnam,
         rasioTujuh,
         rasioDelapan,
-        rasioSembilan
+        rasioSembilan,
+        rasioSepuluh,
+        rasioSebelas
       });
 
     } catch (error) {
