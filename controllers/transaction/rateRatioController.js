@@ -241,6 +241,8 @@ module.exports = {
     const rateLima = {};
     const rateEnam = {};
     const rateTujuh = {};
+    const rateSepuluh = {};
+    const rateSebelas = {};
     const agregatCabang = {
       total_pembiayaan: 0,
       total_unit_jual: 0,
@@ -523,6 +525,24 @@ module.exports = {
         agregatCabang.total_cadangan_stock += cadanganStockValue;
       });
 
+      // === Laba Rugi (kumulatif) tiap unit -> agregat cabang ===
+      const labaRugiData = await LabaRugi.findAll({
+        where,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("kumulatif")), "kumulatif"],
+        ],
+        group: ["year", "month"],
+        raw: true,
+      });
+      labaRugiData.forEach((lr) => {
+        const monthAgg = ensureAgregatMonth(lr.year, lr.month);
+        const kumulatifValue = parseFloat(lr.kumulatif || 0);
+        monthAgg.total_kumulatif += kumulatifValue;
+        agregatCabang.total_kumulatif += kumulatifValue;
+      });
+
       const monthKeyMap = new Map();
       const collectMonthKey = (items = []) => {
         items.forEach((item) => {
@@ -596,6 +616,37 @@ module.exports = {
         rate_penyusutan_aktiva_per_karyawan:
           item.rate_penyusutan_aktiva_per_karyawan,
       }));
+
+      // === Rate 10 & 11: kumulatif per unit dan per karyawan (per entity) ===
+      const entityUnitCount = entityType === "unit" ? 1 : 1; // fallback 1 agar tidak bagi 0
+      rateSepuluh[name] = labaRugiData.map((lr) => {
+        const totalKumulatif = parseFloat(lr.kumulatif || 0);
+        return {
+          type: entityType,
+          year: lr.year,
+          month: lr.month,
+          total_kumulatif: totalKumulatif,
+          total_unit: entityUnitCount,
+          kumulatif_per_unit:
+            entityUnitCount > 0 ? totalKumulatif / entityUnitCount : 0,
+        };
+      });
+
+      rateSebelas[name] = labaRugiData.map((lr) => {
+        const key = `${lr.year}-${lr.month}`;
+        const sd = sumberDayaMap.get(key);
+        const totalKaryawan = parseFloat(sd?.jumlah_karyawan || 0);
+        const totalKumulatif = parseFloat(lr.kumulatif || 0);
+        return {
+          type: entityType,
+          year: lr.year,
+          month: lr.month,
+          total_kumulatif: totalKumulatif,
+          total_karyawan: totalKaryawan,
+          kumulatif_per_karyawan:
+            totalKaryawan > 0 ? totalKumulatif / totalKaryawan : 0,
+        };
+      });
     }
 
     // Tambahkan data cabang utama (parent) ke agregat gaji & karyawan
@@ -675,6 +726,39 @@ module.exports = {
       monthAgg.total_kumulatif += kumulatifValue;
       agregatCabang.total_kumulatif += kumulatifValue;
     });
+
+    // === Pastikan agregat kumulatif cabang mengambil semua descendant (termasuk parent) ===
+    const allBranchIds = entityIds.map((e) => e.id).filter(Boolean);
+    if (allBranchIds.length) {
+      // reset total_kumulatif agar tidak double-count sebelum dijumlah ulang
+      Object.values(agregatByMonth).forEach((agg) => {
+        agg.total_kumulatif = 0;
+      });
+      agregatCabang.total_kumulatif = 0;
+
+      const semuaLabaRugi = await LabaRugi.findAll({
+        where: {
+          branch_id: allBranchIds,
+          is_active: true,
+          ...(year ? { year } : {}),
+          ...(month ? { month } : {}),
+        },
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("kumulatif")), "kumulatif"],
+        ],
+        group: ["year", "month"],
+        raw: true,
+      });
+
+      semuaLabaRugi.forEach((row) => {
+        const monthAgg = ensureAgregatMonth(row.year, row.month);
+        const kumulatifValue = parseFloat(row.kumulatif || 0);
+        monthAgg.total_kumulatif += kumulatifValue;
+        agregatCabang.total_kumulatif += kumulatifValue;
+      });
+    }
 
     // ✅ Hitung rasio cabang (hasil rata-rata dari semua unit)
     const cabang = await Entities.findOne({
@@ -881,6 +965,8 @@ module.exports = {
         rate_lima: rateLima,
         rate_enam: rateEnam,
         rate_tujuh: rateTujuh,
+        rate_sepuluh: rateSepuluh,
+        rate_sebelas: rateSebelas,
       });
     } catch (error) {
       console.error("Error in getRateSatuDua:", error);
