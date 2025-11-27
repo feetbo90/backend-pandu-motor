@@ -62,6 +62,24 @@ seeders/
    npm run dev
    ```
 
+## Menjalankan dengan Docker
+
+1. Pastikan file `.env` terisi (JWT, DB_USER, DB_PASS, DB_NAME, dll). Nilai `DB_HOST` di-override menjadi `db` oleh `docker-compose`.
+2. Build dan jalankan kontainer:
+   ```bash
+   docker compose up -d --build
+   ```
+3. Setelah Postgres siap, jalankan migrasi (dan seeder bila perlu):
+   ```bash
+   docker compose exec api npm run migrate
+   docker compose exec api npm run seed   # opsional
+   ```
+4. API jalan di `http://localhost:3000`, dokumentasi swagger di `http://localhost:3000/api-docs`.
+
+Catatan:
+- Service DB menggunakan `postgres:latest` dengan data persisten di volume `db_data`.
+- Folder `uploads/` di-host di-mount ke `/app/uploads` agar file tersimpan di host.
+
 ## Struktur API
 
 - Semua endpoint tersedia di folder `routes/`.
