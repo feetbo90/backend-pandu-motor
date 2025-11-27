@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     depends_on:
       - db
+    networks:
+      - shared
     env_file:
       - .env
     environment:
@@ -24,6 +26,8 @@ services:
     image: postgres:latest
     container_name: pandu_motor_db
     restart: unless-stopped
+    networks:
+      - shared
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASS:-postgres}
@@ -40,3 +44,8 @@ services:
 
 volumes:
   db_data:
+
+networks:
+  shared:
+    external: true
+    name: pandu_shared_net

@@ -64,21 +64,61 @@ seeders/
 
 ## Menjalankan dengan Docker
 
-1. Pastikan file `.env` terisi (JWT, DB_USER, DB_PASS, DB_NAME, dll). Nilai `DB_HOST` di-override menjadi `db` oleh `docker-compose`.
-2. Build dan jalankan kontainer:
+1. (Satu kali di mesin) buat shared network untuk komunikasi lintas proyek:
+   ```bash
+   docker network create pandu_shared_net
+   ```
+2. Pastikan file `.env` terisi (JWT, DB_USER, DB_PASS, DB_NAME, dll). Nilai `DB_HOST` di-override menjadi `db` oleh `docker-compose`.
+3. Build dan jalankan kontainer:
    ```bash
    docker compose up -d --build
    ```
-3. Setelah Postgres siap, jalankan migrasi (dan seeder bila perlu):
+4. Setelah Postgres siap, jalankan migrasi (dan seeder bila perlu):
    ```bash
    docker compose exec api npm run migrate
    docker compose exec api npm run seed   # opsional
    ```
-4. API jalan di `http://localhost:3000`, dokumentasi swagger di `http://localhost:3000/api-docs`.
+5. API jalan di `http://localhost:3000`, dokumentasi swagger di `http://localhost:3000/api-docs`.
 
 Catatan:
 - Service DB menggunakan `postgres:latest` dengan data persisten di volume `db_data`.
 - Folder `uploads/` di-host di-mount ke `/app/uploads` agar file tersimpan di host.
+- Shared network bernama `pandu_shared_net` (external). Pastikan proyek lain yang ingin terhubung juga memakai nama network yang sama.
+
+### Contoh docker-compose untuk frontend (berbagi network)
+
+Gunakan `pandu_shared_net` supaya frontend bisa memanggil service `api`:
+
+```yaml
+version: "3.9"
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://api:3000/api/}
+    container_name: pandu_motor_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://api:3000/api/}
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    networks:
+      - pandu_shared_net
+
+networks:
+  pandu_shared_net:
+    external: true
+```
+
+Pastikan network sudah dibuat terlebih dahulu:
+```bash
+docker network create pandu_shared_net
+```
 
 ## Struktur API
 
