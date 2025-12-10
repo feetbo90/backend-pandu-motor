@@ -6,16 +6,19 @@ module.exports = {
   async getRate(req, res) {
     try {
       const { branch_id, year, month } = req.query;
+      const branchId = branch_id ? parseInt(branch_id, 10) : undefined;
+      const yearInt = year ? parseInt(year, 10) : undefined;
+      const monthInt = month ? parseInt(month, 10) : undefined;
 
-      if (!branch_id || !year) {
+      if (!branchId || !yearInt) {
         return res.status(400).json({ message: "branch_id dan year wajib diisi" });
       }
 
-      let where = { branch_id, year, is_active: true  };
-      if (month) where.month = month;
+      let where = { branch_id: branchId, year: yearInt, is_active: true  };
+      if (monthInt) where.month = monthInt;
 
       // --- Perhitungan agregasi tahunan (rate_satu_dua) ---
-      const dataTahun = await Penjualan.findAll({
+      const dataTahunRaw = await Penjualan.findAll({
         where,
         attributes: [
           "year",
@@ -58,9 +61,17 @@ module.exports = {
         order: [["year", "ASC"]],
         raw: true,
       });
+      const dataTahun = dataTahunRaw.map(row => ({
+        ...row,
+        year: Number(row.year),
+        total_pembiayaan: parseFloat(row.total_pembiayaan || 0),
+        total_unit_jual: parseFloat(row.total_unit_jual || 0),
+        total_penjualan: parseFloat(row.total_penjualan || 0),
+        total_unit: parseFloat(row.total_unit || 0),
+      }));
 
       // --- Ambil rate_satu_dua per bulan ---
-      const dataBulan = await Penjualan.findAll({
+      const dataBulanRaw = await Penjualan.findAll({
         where: where,
         attributes: [
           "year",
@@ -104,21 +115,47 @@ module.exports = {
         order: [["month", "ASC"]],
         raw: true,
       });
+      // normalisasi angka agar kunci per bulan konsisten
+      const dataBulan = dataBulanRaw.map(row => ({
+        ...row,
+        year: Number(row.year),
+        month: Number(row.month),
+        total_pembiayaan: parseFloat(row.total_pembiayaan || 0),
+        total_unit_jual: parseFloat(row.total_unit_jual || 0),
+        total_penjualan: parseFloat(row.total_penjualan || 0),
+        total_unit: parseFloat(row.total_unit || 0),
+      }));
 
       // --- Ambil data sumber daya ---
-      const sumberDaya = await SumberDaya.findAll({
+      const sumberDayaRaw = await SumberDaya.findAll({
         where: where,
-        attributes: ["year", "month", "jumlah_karyawan"],
+        attributes: ["year", "month", "jumlah_karyawan", "updated_at", "id"],
+        order: [
+          ["updated_at", "DESC"],
+          ["id", "DESC"],
+        ],
         raw: true,
+      });
+      // ambil record terbaru per (year, month)
+      const sumberDayaMap = new Map();
+      sumberDayaRaw.forEach(sd => {
+        const y = Number(sd.year);
+        const m = Number(sd.month);
+        const key = `${y}-${m}`;
+        if (!sumberDayaMap.has(key)) {
+          sumberDayaMap.set(key, {
+            year: y,
+            month: m,
+            jumlah_karyawan: Number(sd.jumlah_karyawan || 0),
+          });
+        }
       });
 
       // --- Hitung rate_tiga ---
       const rateTiga = [];
       for (const bulan of dataBulan) {
-        const sd = sumberDaya.find(
-          (s) => s.year === bulan.year && s.month === bulan.month
-        );
-        const jumlahKaryawan = sd?.jumlah_karyawan || 0;
+        const sd = sumberDayaMap.get(`${bulan.year}-${bulan.month}`);
+        const jumlahKaryawan = sd?.jumlah_karyawan ?? 0;
 
         const totalPenjualan =
           parseFloat(bulan.total_penjualan || 0);
@@ -147,10 +184,8 @@ module.exports = {
       });
 
       const rateEmpat = pendapatan.map((p) => {
-        const sd = sumberDaya.find(
-          (s) => s.year === p.year && s.month === p.month
-        );
-        const jumlahKaryawan = sd?.jumlah_karyawan || 0;
+        const sd = sumberDayaMap.get(`${Number(p.year)}-${Number(p.month)}`);
+        const jumlahKaryawan = sd?.jumlah_karyawan ?? 0;
         const totalMarkup = parseFloat(p.total_markup || 0);
 
         return {
@@ -172,8 +207,8 @@ module.exports = {
       // --- Hitung rate tiga dan tambahan ---
       const rateLimaEnamTujuh = [];
       for (const bulan of dataBulan) {
-        const sd = sumberDaya.find((s) => s.year === bulan.year && s.month === bulan.month);
-        const jumlahKaryawan = sd?.jumlah_karyawan || 0;
+        const sd = sumberDayaMap.get(`${bulan.year}-${bulan.month}`);
+        const jumlahKaryawan = sd?.jumlah_karyawan ?? 0;
 
         const bebanData = beban.find((b) => b.year === bulan.year && b.month === bulan.month);
 
@@ -227,11 +262,20 @@ module.exports = {
     try {
     const { entity_id } = req.params;
     const { year, month } = req.query;
+    // normalisasi angka supaya perbandingan === tidak gagal karena tipe berbeda
+    const entityId = parseInt(entity_id, 10);
+    const yearInt = year ? parseInt(year, 10) : undefined;
+    const monthInt = month ? parseInt(month, 10) : undefined;
 
 
     // ✅ Ambil semua turunan aktif (termasuk parent)
-    const entityIds = await getAllDescendants(entity_id);
+    const entityIds = await getAllDescendants(entityId);
     const unitCount = entityIds.filter(entity => entity?.type === "UNIT").length;
+    const rootEntity = await Entities.findOne({
+      where: { id: entityId, is_active: true },
+      attributes: ["entity_type", "name"],
+      raw: true,
+    });
       console.log("Descendant Entity IDs:", entityIds);
     // ✅ Ambil semua data penjualan per entity (unit)
     const rateSatu = {};
@@ -285,11 +329,11 @@ module.exports = {
       if (!id) continue; // 🔒 skip kalau id tidak valid
 
       // Lewati parent kalau CABANG utama
-      if (parseInt(id) === parseInt(entity_id) && type === "CABANG") continue;
+      if (parseInt(id) === entityId && type === "CABANG") continue;
 
       let where = { branch_id: id, is_active: true  };
-      if (year) where.year = year;
-      if (month) where.month = month;
+      if (yearInt) where.year = yearInt;
+      if (monthInt) where.month = monthInt;
       const dataBulan = await Penjualan.findAll({
         where: where,
         attributes: [
@@ -365,10 +409,10 @@ module.exports = {
       });
       const sumberDayaMap = new Map();
       sumberDaya.forEach((sd) => {
-        const key = `${sd.year}-${sd.month}`;
+        const key = `${Number(sd.year)}-${Number(sd.month)}`;
         sumberDayaMap.set(key, {
-          year: sd.year,
-          month: sd.month,
+          year: Number(sd.year),
+          month: Number(sd.month),
           jumlah_karyawan: parseFloat(sd.jumlah_karyawan || 0),
         });
       });
@@ -378,8 +422,8 @@ module.exports = {
         const totalUnitJual = parseFloat(row.total_unit_jual || 0);
         return {
           type: entityType,
-          year: row.year,
-          month: row.month,
+          year: Number(row.year),
+          month: Number(row.month),
           total_pembiayaan: totalPembiayaan,
           total_unit_jual: totalUnitJual,
           pembiayaan_per_unit: totalUnitJual > 0 ? totalPembiayaan / totalUnitJual : 0,
@@ -391,8 +435,8 @@ module.exports = {
         const totalUnit = parseFloat(row.total_unit || 0);
         return {
           type: entityType,
-          year: row.year,
-          month: row.month,
+          year: Number(row.year),
+          month: Number(row.month),
           total_penjualan: totalPenjualan,
           total_unit: totalUnit,
           penjualan_per_unit: totalUnit > 0 ? totalPenjualan / totalUnit : 0,
@@ -409,7 +453,9 @@ module.exports = {
 
       // Tambahkan ke agregat cabang per bulan (sum across units)
       dataBulan.forEach(row => {
-        const monthAgg = ensureAgregatMonth(row.year, row.month);
+        const yearVal = Number(row.year);
+        const monthVal = Number(row.month);
+        const monthAgg = ensureAgregatMonth(yearVal, monthVal);
         monthAgg.total_pembiayaan += parseFloat(row.total_pembiayaan || 0);
         monthAgg.total_unit_jual += parseFloat(row.total_unit_jual || 0);
         monthAgg.total_penjualan += parseFloat(row.total_penjualan || 0);
@@ -418,22 +464,22 @@ module.exports = {
 
       // tambahkan jumlah karyawan unit ke agregatByMonth
       sumberDaya.forEach(sd => {
-        const monthAgg = ensureAgregatMonth(sd.year, sd.month);
+        const monthAgg = ensureAgregatMonth(Number(sd.year), Number(sd.month));
         const jumlahKaryawan = parseFloat(sd.jumlah_karyawan || 0);
         monthAgg.total_karyawan += jumlahKaryawan;
         agregatCabang.total_karyawan += jumlahKaryawan;
       });
 
-      
+
       // === Gabungkan untuk rate_tiga ===
       const mergedData = dataBulan.map((penj) => {
-        const sd = sumberDaya.find((s) => s.year === penj.year && s.month === penj.month);
+        const sd = sumberDaya.find((s) => Number(s.year) === Number(penj.year) && Number(s.month) === Number(penj.month));
         const jumlah_karyawan = sd?.jumlah_karyawan || 0;
         const total_penjualan = parseFloat(penj.total_penjualan || 0);
 
         return {
-          year: penj.year,
-          month: penj.month,
+          year: Number(penj.year),
+          month: Number(penj.month),
           total_penjualan: total_penjualan,
           jumlah_karyawan,
           penjualan_per_karyawan: jumlah_karyawan > 0 ? total_penjualan / jumlah_karyawan : 0,
@@ -456,17 +502,17 @@ module.exports = {
 
       // === (6) Gabung ke rate_empat (markup_jumlah / karyawan) ===
       const mergedEmpat = pendapatan.map((p) => {
-        const sd = sumberDaya.find((s) => s.year === p.year && s.month === p.month);
+        const sd = sumberDaya.find((s) => Number(s.year) === Number(p.year) && Number(s.month) === Number(p.month));
         const jumlah_karyawan = sd?.jumlah_karyawan || 0;
         const total_markup = parseFloat(p.total_markup || 0);
-        
-        
-        const monthAgg = ensureAgregatMonth(p.year, p.month);
+
+
+        const monthAgg = ensureAgregatMonth(Number(p.year), Number(p.month));
         monthAgg.total_markup += total_markup;
 
         return {
-          year: p.year,
-          month: p.month,
+          year: Number(p.year),
+          month: Number(p.month),
           total_markup,
           jumlah_karyawan,
           rate_empat: jumlah_karyawan > 0 ? total_markup / jumlah_karyawan : 0,
@@ -515,7 +561,7 @@ module.exports = {
           cadangan_stock: cadanganStockValue,
         });
 
-        const monthAgg = ensureAgregatMonth(b.year, b.month);
+        const monthAgg = ensureAgregatMonth(Number(b.year), Number(b.month));
         monthAgg.total_gaji += gajiValue;
         monthAgg.total_beban_umum_operasional += parseFloat(b.beban_umum_operasional || 0);
         monthAgg.total_penyusutan_aktiva += parseFloat(b.penyusutan_aktiva || 0);
@@ -537,7 +583,7 @@ module.exports = {
         raw: true,
       });
       labaRugiData.forEach((lr) => {
-        const monthAgg = ensureAgregatMonth(lr.year, lr.month);
+        const monthAgg = ensureAgregatMonth(Number(lr.year), Number(lr.month));
         const kumulatifValue = parseFloat(lr.kumulatif || 0);
         monthAgg.total_kumulatif += kumulatifValue;
         agregatCabang.total_kumulatif += kumulatifValue;
@@ -547,9 +593,11 @@ module.exports = {
       const collectMonthKey = (items = []) => {
         items.forEach((item) => {
           if (item?.year === undefined || item?.month === undefined) return;
-          const key = `${item.year}-${item.month}`;
+          const y = Number(item.year);
+          const m = Number(item.month);
+          const key = `${y}-${m}`;
           if (!monthKeyMap.has(key)) {
-            monthKeyMap.set(key, { year: item.year, month: item.month });
+            monthKeyMap.set(key, { year: y, month: m });
           }
         });
       };
@@ -649,83 +697,85 @@ module.exports = {
       });
     }
 
-    // Tambahkan data cabang utama (parent) ke agregat gaji & karyawan
-    const cabangWhere = { branch_id: entity_id, is_active: true };
-    if (year) cabangWhere.year = year;
-    if (month) cabangWhere.month = month;
+    // Tambahkan data cabang utama (parent) ke agregat gaji & karyawan hanya jika root adalah CABANG
+    if (rootEntity?.entity_type === "CABANG") {
+      const cabangWhere = { branch_id: entityId, is_active: true };
+      if (yearInt) cabangWhere.year = yearInt;
+      if (monthInt) cabangWhere.month = monthInt;
 
-    const cabangSumberDaya = await SumberDaya.findAll({
-      where: cabangWhere,
-      attributes: [
-        "year",
-        "month",
-        [Sequelize.fn("SUM", Sequelize.col("jumlah_karyawan")), "jumlah_karyawan"],
-      ],
-      group: ["year", "month"],
-      raw: true,
-    });
-    cabangSumberDaya.forEach((sd) => {
-      const monthAgg = ensureAgregatMonth(sd.year, sd.month);
-      const jumlahKaryawan = parseFloat(sd.jumlah_karyawan || 0);
-      monthAgg.total_karyawan += jumlahKaryawan;
-      agregatCabang.total_karyawan += jumlahKaryawan;
-    });
+      const cabangSumberDaya = await SumberDaya.findAll({
+        where: cabangWhere,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("jumlah_karyawan")), "jumlah_karyawan"],
+        ],
+        group: ["year", "month"],
+        raw: true,
+      });
+      cabangSumberDaya.forEach((sd) => {
+        const monthAgg = ensureAgregatMonth(Number(sd.year), Number(sd.month));
+        const jumlahKaryawan = parseFloat(sd.jumlah_karyawan || 0);
+        monthAgg.total_karyawan += jumlahKaryawan;
+        agregatCabang.total_karyawan += jumlahKaryawan;
+      });
 
-    const cabangBeban = await Beban.findAll({
-      where: cabangWhere,
-      attributes: [
-        "year",
-        "month",
-        [Sequelize.fn("SUM", Sequelize.col("gaji")), "gaji"],
-        [
-          Sequelize.fn("SUM", Sequelize.col("beban_umum_operasional")),
-          "beban_umum_operasional",
+      const cabangBeban = await Beban.findAll({
+        where: cabangWhere,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("gaji")), "gaji"],
+          [
+            Sequelize.fn("SUM", Sequelize.col("beban_umum_operasional")),
+            "beban_umum_operasional",
+          ],
+          [
+            Sequelize.fn("SUM", Sequelize.col("penyusutan_aktiva")),
+            "penyusutan_aktiva",
+          ],
+          [
+            Sequelize.fn("SUM", Sequelize.col("cadangan_piutang")),
+            "cadangan_piutang",
+          ],
+          [
+            Sequelize.fn("SUM", Sequelize.col("cadangan_stock")),
+            "cadangan_stock",
+          ],
         ],
-        [
-          Sequelize.fn("SUM", Sequelize.col("penyusutan_aktiva")),
-          "penyusutan_aktiva",
-        ],
-        [
-          Sequelize.fn("SUM", Sequelize.col("cadangan_piutang")),
-          "cadangan_piutang",
-        ],
-        [
-          Sequelize.fn("SUM", Sequelize.col("cadangan_stock")),
-          "cadangan_stock",
-        ],
-      ],
-      group: ["year", "month"],
-      raw: true,
-    });
-    cabangBeban.forEach((b) => {
-      const monthAgg = ensureAgregatMonth(b.year, b.month);
-      monthAgg.total_gaji += parseFloat(b.gaji || 0);
-      monthAgg.total_beban_umum_operasional += parseFloat(b.beban_umum_operasional || 0);
-      monthAgg.total_penyusutan_aktiva += parseFloat(b.penyusutan_aktiva || 0);
-      const cabangCadanganPiutang = parseFloat(b.cadangan_piutang || 0);
-      const cabangCadanganStock = parseFloat(b.cadangan_stock || 0);
-      monthAgg.total_cadangan_piutang += cabangCadanganPiutang;
-      monthAgg.total_cadangan_stock += cabangCadanganStock;
-      agregatCabang.total_cadangan_piutang += cabangCadanganPiutang;
-      agregatCabang.total_cadangan_stock += cabangCadanganStock;
-    });
+        group: ["year", "month"],
+        raw: true,
+      });
+      cabangBeban.forEach((b) => {
+        const monthAgg = ensureAgregatMonth(Number(b.year), Number(b.month));
+        monthAgg.total_gaji += parseFloat(b.gaji || 0);
+        monthAgg.total_beban_umum_operasional += parseFloat(b.beban_umum_operasional || 0);
+        monthAgg.total_penyusutan_aktiva += parseFloat(b.penyusutan_aktiva || 0);
+        const cabangCadanganPiutang = parseFloat(b.cadangan_piutang || 0);
+        const cabangCadanganStock = parseFloat(b.cadangan_stock || 0);
+        monthAgg.total_cadangan_piutang += cabangCadanganPiutang;
+        monthAgg.total_cadangan_stock += cabangCadanganStock;
+        agregatCabang.total_cadangan_piutang += cabangCadanganPiutang;
+        agregatCabang.total_cadangan_stock += cabangCadanganStock;
+      });
 
-    const cabangLabaRugi = await LabaRugi.findAll({
-      where: cabangWhere,
-      attributes: [
-        "year",
-        "month",
-        [Sequelize.fn("SUM", Sequelize.col("kumulatif")), "kumulatif"],
-      ],
-      group: ["year", "month"],
-      raw: true,
-    });
-    cabangLabaRugi.forEach((row) => {
-      const monthAgg = ensureAgregatMonth(row.year, row.month);
-      const kumulatifValue = parseFloat(row.kumulatif || 0);
-      monthAgg.total_kumulatif += kumulatifValue;
-      agregatCabang.total_kumulatif += kumulatifValue;
-    });
+      const cabangLabaRugi = await LabaRugi.findAll({
+        where: cabangWhere,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("kumulatif")), "kumulatif"],
+        ],
+        group: ["year", "month"],
+        raw: true,
+      });
+      cabangLabaRugi.forEach((row) => {
+        const monthAgg = ensureAgregatMonth(Number(row.year), Number(row.month));
+        const kumulatifValue = parseFloat(row.kumulatif || 0);
+        monthAgg.total_kumulatif += kumulatifValue;
+        agregatCabang.total_kumulatif += kumulatifValue;
+      });
+    }
 
     // === Pastikan agregat kumulatif cabang mengambil semua descendant (termasuk parent) ===
     const allBranchIds = entityIds.map((e) => e.id).filter(Boolean);
@@ -740,8 +790,8 @@ module.exports = {
         where: {
           branch_id: allBranchIds,
           is_active: true,
-          ...(year ? { year } : {}),
-          ...(month ? { month } : {}),
+          ...(yearInt ? { year: yearInt } : {}),
+          ...(monthInt ? { month: monthInt } : {}),
         },
         attributes: [
           "year",
@@ -753,7 +803,7 @@ module.exports = {
       });
 
       semuaLabaRugi.forEach((row) => {
-        const monthAgg = ensureAgregatMonth(row.year, row.month);
+        const monthAgg = ensureAgregatMonth(Number(row.year), Number(row.month));
         const kumulatifValue = parseFloat(row.kumulatif || 0);
         monthAgg.total_kumulatif += kumulatifValue;
         agregatCabang.total_kumulatif += kumulatifValue;
@@ -761,11 +811,7 @@ module.exports = {
     }
 
     // ✅ Hitung rasio cabang (hasil rata-rata dari semua unit)
-    const cabang = await Entities.findOne({
-      where: { id: entity_id },
-      attributes: ["name"],
-      raw: true,
-    });
+    const cabang = rootEntity;
 
     const hasilCabang = {
       cabang: cabang?.name || "CABANG",
