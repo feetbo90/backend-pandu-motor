@@ -379,6 +379,19 @@ module.exports = {
         raw: true,
       });
 
+      // Piutang tambahan per bulan (dipakai untuk rate_satu)
+      const piutangData = await Piutang.findAll({
+        where: where,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("tambahan")), "total_tambahan"],
+        ],
+        group: ["year", "month"],
+        order: [["year", "ASC"], ["month", "ASC"]],
+        raw: true,
+      });
+
       // Ambil type-nya dari Entities
       const entity = await Entities.findOne({
         where: { id, is_active: true },
@@ -417,16 +430,15 @@ module.exports = {
         });
       });
 
-      rateSatu[name] = dataBulan.map(row => {
-        const totalPembiayaan = parseFloat(row.total_pembiayaan || 0);
-        const totalUnitJual = parseFloat(row.total_unit_jual || 0);
+      rateSatu[name] = piutangData.map(row => {
+        const totalTambahan = parseFloat(row.total_tambahan || 0);
         return {
           type: entityType,
           year: Number(row.year),
           month: Number(row.month),
-          total_pembiayaan: totalPembiayaan,
-          total_unit_jual: totalUnitJual,
-          pembiayaan_per_unit: totalUnitJual > 0 ? totalPembiayaan / totalUnitJual : 0,
+          total_pembiayaan: totalTambahan,
+          total_unit_jual: 0,
+          pembiayaan_per_unit: 0,
         };
       });
 
@@ -445,7 +457,6 @@ module.exports = {
 
       // ✅ Tambahkan ke agregat cabang
       dataBulan.forEach(row => {
-        agregatCabang.total_pembiayaan += parseFloat(row.total_pembiayaan || 0);
         agregatCabang.total_unit_jual += parseFloat(row.total_unit_jual || 0);
         agregatCabang.total_penjualan += parseFloat(row.total_penjualan || 0);
         agregatCabang.total_unit += parseFloat(row.total_unit || 0);
@@ -456,10 +467,19 @@ module.exports = {
         const yearVal = Number(row.year);
         const monthVal = Number(row.month);
         const monthAgg = ensureAgregatMonth(yearVal, monthVal);
-        monthAgg.total_pembiayaan += parseFloat(row.total_pembiayaan || 0);
         monthAgg.total_unit_jual += parseFloat(row.total_unit_jual || 0);
         monthAgg.total_penjualan += parseFloat(row.total_penjualan || 0);
         monthAgg.total_unit += parseFloat(row.total_unit || 0);
+      });
+
+      // Tambahkan piutang tambahan ke agregat cabang dan per bulan
+      piutangData.forEach(row => {
+        const yearVal = Number(row.year);
+        const monthVal = Number(row.month);
+        const totalTambahan = parseFloat(row.total_tambahan || 0);
+        const monthAgg = ensureAgregatMonth(yearVal, monthVal);
+        monthAgg.total_pembiayaan += totalTambahan;
+        agregatCabang.total_pembiayaan += totalTambahan;
       });
 
       // tambahkan jumlah karyawan unit ke agregatByMonth
@@ -718,6 +738,23 @@ module.exports = {
         const jumlahKaryawan = parseFloat(sd.jumlah_karyawan || 0);
         monthAgg.total_karyawan += jumlahKaryawan;
         agregatCabang.total_karyawan += jumlahKaryawan;
+      });
+
+      const cabangPiutang = await Piutang.findAll({
+        where: cabangWhere,
+        attributes: [
+          "year",
+          "month",
+          [Sequelize.fn("SUM", Sequelize.col("tambahan")), "total_tambahan"],
+        ],
+        group: ["year", "month"],
+        raw: true,
+      });
+      cabangPiutang.forEach((row) => {
+        const monthAgg = ensureAgregatMonth(Number(row.year), Number(row.month));
+        const totalTambahan = parseFloat(row.total_tambahan || 0);
+        monthAgg.total_pembiayaan += totalTambahan;
+        agregatCabang.total_pembiayaan += totalTambahan;
       });
 
       const cabangBeban = await Beban.findAll({
