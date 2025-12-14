@@ -1,4 +1,4 @@
-const { Penjualan, SumberDaya, Pendapatan, Beban, Entities, Piutang, SirkulasiPiutang, LabaRugi, sequelize } = require("../../models");
+const { Penjualan, SumberDaya, Pendapatan, Beban, Entities, Piutang, SirkulasiPiutang, LabaRugi, PendapatanLain, sequelize } = require("../../models");
 const { Sequelize, Op } = require("sequelize");
 const { getAllDescendants } = require("../../utils/getDescendants.js");
 
@@ -548,7 +548,8 @@ module.exports = {
           "month",
           [Sequelize.fn("SUM", Sequelize.col("gaji")), "gaji"],
           [
-            Sequelize.fn("SUM", Sequelize.col("beban_umum_operasional")),
+            // beban umum operasional diambil dari kolom operasional
+            Sequelize.fn("SUM", Sequelize.col("operasional")),
             "beban_umum_operasional",
           ],
           [
@@ -764,7 +765,8 @@ module.exports = {
           "month",
           [Sequelize.fn("SUM", Sequelize.col("gaji")), "gaji"],
           [
-            Sequelize.fn("SUM", Sequelize.col("beban_umum_operasional")),
+            // beban umum operasional diambil dari kolom operasional
+            Sequelize.fn("SUM", Sequelize.col("operasional")),
             "beban_umum_operasional",
           ],
           [
@@ -1213,6 +1215,7 @@ module.exports = {
             jumlah_pendapatan: 0,
             denda: 0,
             administrasi: 0,
+            jumlah_pendapatan_lain: 0,
             total_sirkulasi: 0,
             gaji: 0,
             beban_umum_operasional: 0,
@@ -1261,7 +1264,6 @@ module.exports = {
         const penjualanMap = new Map();
         penjualanData.forEach((row) => {
           const bucket = ensureCabangRatioMonth(row.year, row.month);
-          bucket.pembiayaan += parseFloat(row.pembiayaan || 0);
           penjualanMap.set(`${row.year}-${row.month}`, row);
 
           const ratioDuaBucket = ensureCabangRatioDuaMonth(row.year, row.month);
@@ -1277,22 +1279,25 @@ module.exports = {
             "month",
             [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "realisasi_pokok"],
             [Sequelize.fn("SUM", Sequelize.col("jumlah_angsuran")), "jumlah_angsuran"],
+            [Sequelize.fn("SUM", Sequelize.col("tambahan")), "pembiayaan"],
+            [Sequelize.fn("SUM", Sequelize.col("saldo_akhir")), "saldo_akhir"],
           ],
           group: ["year", "month"],
           raw: true,
         });
+        const piutangMap = new Map();
         piutangData.forEach((row) => {
           const bucket = ensureCabangRatioMonth(row.year, row.month);
           bucket.realisasi_pokok += parseFloat(row.realisasi_pokok || 0);
+          bucket.pembiayaan += parseFloat(row.pembiayaan || 0);
+          bucket.total_sirkulasi += parseFloat(row.saldo_akhir || 0);
+          piutangMap.set(`${row.year}-${row.month}`, row);
         });
 
-        // --- Gabungkan data penjualan dan piutang berdasarkan tahun & bulan ---
-        const merged = penjualanData.map((p) => {
-          const matchingPiutang = piutangData.find(
-            (pt) => pt.year === p.year && pt.month === p.month
-          );
+        // --- Gabungkan data piutang per bulan (pembiayaan = tambahan) ---
+        const merged = piutangData.map((p) => {
           const pembiayaan = parseFloat(p.pembiayaan || 0);
-          const realisasi_pokok = parseFloat(matchingPiutang?.realisasi_pokok || 0);
+          const realisasi_pokok = parseFloat(p?.realisasi_pokok || 0);
           const ratio =
             realisasi_pokok > 0 ? (pembiayaan / realisasi_pokok) * 100 : 0;
 
@@ -1302,7 +1307,7 @@ module.exports = {
             month: p.month,
             pembiayaan: pembiayaan,
             realisasi_pokok: realisasi_pokok,
-            pembiayaan_per_realisasi_pokok: ratio + " %",
+            pembiayaan_per_realisasi_pokok: ratio,
           };
         });
 
@@ -1331,13 +1336,28 @@ module.exports = {
           bucket.administrasi += parseFloat(pend.administrasi || 0);
         });
 
-        const mergedData = pendapatan.map((pend) => {
-          const matchPenjualan = penjualanData.find(
-            (p) => p.year === pend.year && p.month === pend.month
-          );
+        const pendapatanLain = await PendapatanLain.findAll({
+          where,
+          attributes: [
+            "year",
+            "month",
+            [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan_lain")), "jumlah_pendapatan_lain"],
+          ],
+          group: ["year", "month"],
+          raw: true,
+        });
+        const pendapatanLainMap = new Map();
+        pendapatanLain.forEach((row) => {
+          const bucket = ensureCabangRatioMonth(row.year, row.month);
+          const jumlahPendapatanLain = parseFloat(row.jumlah_pendapatan_lain || 0);
+          bucket.jumlah_pendapatan_lain += jumlahPendapatanLain;
+          pendapatanLainMap.set(`${row.year}-${row.month}`, jumlahPendapatanLain);
+        });
 
+        const mergedData = pendapatan.map((pend) => {
+          const matchPiutang = piutangMap.get(`${pend.year}-${pend.month}`);
           const total_markup = parseFloat(pend.total_markup || 0);
-          const pembiayaan = parseFloat(matchPenjualan?.pembiayaan || 0);
+          const pembiayaan = parseFloat(matchPiutang?.pembiayaan || 0);
 
           const rasio_markup =
             pembiayaan > 0 ? (total_markup / pembiayaan) * 100 : 0;
@@ -1367,8 +1387,6 @@ module.exports = {
         });
         sirkulasiPiutang.forEach((row) => {
           const bucket = ensureCabangRatioMonth(row.year, row.month);
-          bucket.total_sirkulasi += parseFloat(row.total || 0);
-
           const ratioDuaBucket = ensureCabangRatioDuaMonth(row.year, row.month);
           ratioDuaBucket.macet_lama += parseFloat(row.macet_lama || 0);
         });
@@ -1395,12 +1413,10 @@ module.exports = {
         rasioDua[name] = mergedKemacetan;
 
         const mergedPendapatanSirkulasi = pendapatan.map((pend) => {
-          const matchSirkulasi = sirkulasiPiutang.find(
-            (p) => p.year === pend.year && p.month === pend.month
-          );
+          const matchPiutangSaldo = piutangMap.get(`${pend.year}-${pend.month}`);
 
           const realisasi_bunga = parseFloat(pend.realisasi_bunga || 0);
-          const total = parseFloat(matchSirkulasi?.total || 0);
+          const total = parseFloat(matchPiutangSaldo?.saldo_akhir || 0);
 
           const rasio_markup =
             total > 0 ? (realisasi_bunga / total) * 100 : 0;
@@ -1461,9 +1477,14 @@ module.exports = {
           const denda = parseFloat(pend.denda || 0);
           const administrasi = parseFloat(pend.administrasi || 0);
           const jumlah_pendapatan = parseFloat(pend?.jumlah_pendapatan || 0);
+          const jumlahPendapatanLain = parseFloat(
+            pendapatanLainMap.get(`${pend.year}-${pend.month}`) || 0
+          );
 
           const rasio_pendapatan_lainnya =
-            jumlah_pendapatan > 0 ? ((denda + administrasi) / jumlah_pendapatan) * 100 : 0;
+            jumlah_pendapatan > 0
+              ? ((denda + administrasi + jumlahPendapatanLain) / jumlah_pendapatan) * 100
+              : 0;
 
           return {
             type: type.toLowerCase(),
@@ -1472,6 +1493,7 @@ module.exports = {
             jumlah_pendapatan: jumlah_pendapatan.toFixed(1),
             denda: denda.toFixed(1),
             administrasi: administrasi.toFixed(1),
+            jumlah_pendapatan_lain: jumlahPendapatanLain.toFixed(1),
             rasio_pendapatan_lainnya_per_jumlah_pendapatan: rasio_pendapatan_lainnya.toFixed(2),
           };
       });
@@ -1571,27 +1593,14 @@ module.exports = {
       const cabangWhere = { branch_id: entity_id, year, is_active: true };
       if (month) cabangWhere.month = month;
 
-      const cabangPenjualan = await Penjualan.findAll({
-        where: cabangWhere,
-        attributes: [
-          "year",
-          "month",
-          [Sequelize.fn("SUM", Sequelize.literal("kredit + leasing")), "pembiayaan"],
-        ],
-        group: ["year", "month"],
-        raw: true,
-      });
-      cabangPenjualan.forEach((row) => {
-        const bucket = ensureCabangRatioMonth(row.year, row.month);
-        bucket.pembiayaan += parseFloat(row.pembiayaan || 0);
-      });
-
       const cabangPiutang = await Piutang.findAll({
         where: cabangWhere,
         attributes: [
           "year",
           "month",
           [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "realisasi_pokok"],
+          [Sequelize.fn("SUM", Sequelize.col("tambahan")), "pembiayaan"],
+          [Sequelize.fn("SUM", Sequelize.col("saldo_akhir")), "saldo_akhir"],
         ],
         group: ["year", "month"],
         raw: true,
@@ -1599,6 +1608,8 @@ module.exports = {
       cabangPiutang.forEach((row) => {
         const bucket = ensureCabangRatioMonth(row.year, row.month);
         bucket.realisasi_pokok += parseFloat(row.realisasi_pokok || 0);
+        bucket.pembiayaan += parseFloat(row.pembiayaan || 0);
+        bucket.total_sirkulasi += parseFloat(row.saldo_akhir || 0);
       });
 
       const cabangPendapatan = await Pendapatan.findAll({
@@ -1624,19 +1635,19 @@ module.exports = {
         bucket.administrasi += parseFloat(row.administrasi || 0);
       });
 
-      const cabangSirkulasi = await SirkulasiPiutang.findAll({
+      const cabangPendapatanLain = await PendapatanLain.findAll({
         where: cabangWhere,
         attributes: [
           "year",
           "month",
-          [Sequelize.fn("SUM", Sequelize.col("total")), "total"],
+          [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan_lain")), "jumlah_pendapatan_lain"],
         ],
         group: ["year", "month"],
         raw: true,
       });
-      cabangSirkulasi.forEach((row) => {
+      cabangPendapatanLain.forEach((row) => {
         const bucket = ensureCabangRatioMonth(row.year, row.month);
-        bucket.total_sirkulasi += parseFloat(row.total || 0);
+        bucket.jumlah_pendapatan_lain += parseFloat(row.jumlah_pendapatan_lain || 0);
       });
 
       const cabangBeban = await Beban.findAll({
@@ -1778,8 +1789,9 @@ module.exports = {
       const cabangRasioTujuh = cabangRatioMonths.map((item) => {
         const denda = parseFloat(item.denda || 0);
         const administrasi = parseFloat(item.administrasi || 0);
+        const pendapatanLain = parseFloat(item.jumlah_pendapatan_lain || 0);
         const jumlahPendapatan = parseFloat(item.jumlah_pendapatan || 0);
-        const pendapatanLainnya = denda + administrasi;
+        const pendapatanLainnya = denda + administrasi + pendapatanLain;
         const rasioTujuh =
           jumlahPendapatan > 0 ? (pendapatanLainnya / jumlahPendapatan) * 100 : 0;
 
@@ -1790,6 +1802,7 @@ module.exports = {
           jumlah_pendapatan: formatFixed(jumlahPendapatan),
           denda: formatFixed(denda),
           administrasi: formatFixed(administrasi),
+          jumlah_pendapatan_lain: formatFixed(pendapatanLain),
           rasio_pendapatan_lainnya_per_jumlah_pendapatan: formatFixed(rasioTujuh, 2),
         };
       });
