@@ -207,7 +207,9 @@ module.exports = {
   async update(req, res) {
     try {
       const data = await Beban.findByPk(req.params.id);
-      const { gaji, admin, operasional, beban_umum_operasional, cadangan_piutang } = req.body;
+      const { gaji, admin, operasional, beban_umum_operasional, cadangan_piutang, cadangan_stock,
+        penyusutan_aktiva, total
+       } = req.body;
 
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
@@ -217,6 +219,9 @@ module.exports = {
         operasional,
         beban_umum_operasional,
         cadangan_piutang,
+        cadangan_stock,
+        penyusutan_aktiva,
+        total,
         updated_at: new Date(),
         change_id: uuidv4(),
         version: Number(data.version) + 1

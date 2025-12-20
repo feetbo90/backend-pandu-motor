@@ -36,7 +36,7 @@ module.exports = {
         email: "unit.aekkanopan1@company.com",
         password: passwordHash,
         entity_type: "UNIT",
-        entity_id: 5, // pastikan sesuai id unit
+        entity_id: 4, // pastikan sesuai id unit
         created_at: new Date()
       }
     ]);
