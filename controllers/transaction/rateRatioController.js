@@ -1447,9 +1447,10 @@ module.exports = {
             pendapatanLainMap.get(`${pend.year}-${pend.month}`) || 0
           );
 
+          // Rasio pendapatan lainnya hanya memakai pendapatan_lain / jumlah_pendapatan
           const rasio_pendapatan_lainnya =
             jumlah_pendapatan > 0
-              ? ((denda + administrasi + jumlahPendapatanLain) / jumlah_pendapatan) * 100
+              ? (jumlahPendapatanLain / jumlah_pendapatan) * 100
               : 0;
 
           return {
@@ -1891,9 +1892,8 @@ module.exports = {
         const administrasi = parseFloat(item.administrasi || 0);
         const pendapatanLain = parseFloat(item.jumlah_pendapatan_lain || 0);
         const jumlahPendapatan = parseFloat(item.jumlah_pendapatan || 0);
-        const pendapatanLainnya = denda + administrasi + pendapatanLain;
         const rasioTujuh =
-          jumlahPendapatan > 0 ? (pendapatanLainnya / jumlahPendapatan) * 100 : 0;
+          jumlahPendapatan > 0 ? (pendapatanLain / jumlahPendapatan) * 100 : 0;
 
         return {
           type: "cabang",
