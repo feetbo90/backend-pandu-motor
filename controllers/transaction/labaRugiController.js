@@ -39,6 +39,8 @@ module.exports = {
       const data = await LabaRugi.create({
         branch_id,
         period_id: 1,
+        year,
+        month,
         ...rest,
         created_at: new Date(),
         updated_at: new Date(),
