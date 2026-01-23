@@ -598,14 +598,14 @@ module.exports = {
         attributes: [
           "year",
           "month",
-          [Sequelize.fn("SUM", Sequelize.col("bulan_ini")), "bulan_ini"],
+          [Sequelize.fn("SUM", Sequelize.col("kumulatif")), "kumulatif"],
         ],
         group: ["year", "month"],
         raw: true,
       });
       labaRugiData.forEach((lr) => {
         const monthAgg = ensureAgregatMonth(Number(lr.year), Number(lr.month));
-        const kumulatifValue = parseFloat(lr.bulan_ini || 0);
+        const kumulatifValue = parseFloat(lr.kumulatif || 0);
         monthAgg.total_kumulatif += kumulatifValue;
         agregatCabang.total_kumulatif += kumulatifValue;
       });
@@ -689,7 +689,7 @@ module.exports = {
       // === Rate 10 & 11: kumulatif per unit dan per karyawan (per entity) ===
       const entityUnitCount = entityType === "unit" ? 1 : 1; // fallback 1 agar tidak bagi 0
       rateSepuluh[name] = labaRugiData.map((lr) => {
-        const totalKumulatif = parseFloat(lr.bulan_ini || 0);
+        const totalKumulatif = parseFloat(lr.kumulatif || 0);
         return {
           type: entityType,
           year: lr.year,
@@ -705,7 +705,7 @@ module.exports = {
         const key = `${lr.year}-${lr.month}`;
         const sd = sumberDayaMap.get(key);
         const totalKaryawan = parseFloat(sd?.jumlah_karyawan || 0);
-        const totalKumulatif = parseFloat(lr.bulan_ini || 0);
+        const totalKumulatif = parseFloat(lr.kumulatif || 0);
         return {
           type: entityType,
           year: lr.year,
@@ -803,14 +803,14 @@ module.exports = {
         attributes: [
           "year",
           "month",
-          [Sequelize.fn("SUM", Sequelize.col("bulan_ini")), "bulan_ini"],
+          [Sequelize.fn("SUM", Sequelize.col("kumulatif")), "kumulatif"],
         ],
         group: ["year", "month"],
         raw: true,
       });
       cabangLabaRugi.forEach((row) => {
         const monthAgg = ensureAgregatMonth(Number(row.year), Number(row.month));
-        const kumulatifValue = parseFloat(row.bulan_ini || 0);
+        const kumulatifValue = parseFloat(row.kumulatif || 0);
         monthAgg.total_kumulatif += kumulatifValue;
         agregatCabang.total_kumulatif += kumulatifValue;
       });
@@ -835,7 +835,7 @@ module.exports = {
         attributes: [
           "year",
           "month",
-          [Sequelize.fn("SUM", Sequelize.col("bulan_ini")), "bulan_ini"],
+          [Sequelize.fn("SUM", Sequelize.col("kumulatif")), "kumulatif"],
         ],
         group: ["year", "month"],
         raw: true,
@@ -843,7 +843,7 @@ module.exports = {
 
       semuaLabaRugi.forEach((row) => {
         const monthAgg = ensureAgregatMonth(Number(row.year), Number(row.month));
-        const kumulatifValue = parseFloat(row.bulan_ini || 0);
+        const kumulatifValue = parseFloat(row.kumulatif || 0);
         monthAgg.total_kumulatif += kumulatifValue;
         agregatCabang.total_kumulatif += kumulatifValue;
       });
