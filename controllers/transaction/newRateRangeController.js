@@ -41,6 +41,8 @@ const cumulativeTotal = (monthMap, monthEnd) => {
 const safeDivide = (numerator, denominator) =>
   denominator > 0 ? numerator / denominator : 0;
 const roundTwo = (value) => Number(toNumber(value).toFixed(2));
+const toMonthValueField = (totalFieldName) =>
+  `${String(totalFieldName || "").replace(/^total_/, "")}_bulan_ini`;
 
 // Builder generic untuk rate berbasis rata-rata kumulatif (bulan 1..N).
 const buildAverageRate = (
@@ -54,21 +56,29 @@ const buildAverageRate = (
     denominatorTotalField,
     numeratorAverageField,
     denominatorAverageField,
+    numeratorMonthField,
+    denominatorMonthField,
     ratioField,
     komentar,
   } = opts;
 
   const results = [];
 
-  for (let monthEnd = 2; monthEnd <= selectedMonth; monthEnd += 1) {
+  for (let monthEnd = 1; monthEnd <= selectedMonth; monthEnd += 1) {
     const totalNumerator = cumulativeTotal(numeratorMap, monthEnd);
     const totalDenominator = cumulativeTotal(denominatorMap, monthEnd);
     const averageNumerator = roundTwo(totalNumerator / monthEnd);
     const averageDenominator = roundTwo(totalDenominator / monthEnd);
+    const currentNumerator = roundTwo(numeratorMap.get(monthEnd) || 0);
+    const currentDenominator = roundTwo(denominatorMap.get(monthEnd) || 0);
 
     results.push({
       month_end: monthEnd,
       komentar,
+      [numeratorMonthField || toMonthValueField(numeratorTotalField)]:
+        currentNumerator,
+      [denominatorMonthField || toMonthValueField(denominatorTotalField)]:
+        currentDenominator,
       [numeratorTotalField]: totalNumerator,
       [denominatorTotalField]: totalDenominator,
       [numeratorAverageField]: averageNumerator,
@@ -90,6 +100,7 @@ const buildUnitCountRate = (
   const {
     totalField,
     averageField,
+    monthValueField,
     unitField,
     ratioField,
     komentar,
@@ -97,13 +108,15 @@ const buildUnitCountRate = (
 
   const results = [];
 
-  for (let monthEnd = 2; monthEnd <= selectedMonth; monthEnd += 1) {
+  for (let monthEnd = 1; monthEnd <= selectedMonth; monthEnd += 1) {
     const totalValue = cumulativeTotal(valueMap, monthEnd);
     const averageValue = roundTwo(totalValue / monthEnd);
+    const currentValue = roundTwo(valueMap.get(monthEnd) || 0);
 
     results.push({
       month_end: monthEnd,
       komentar,
+      [monthValueField || toMonthValueField(totalField)]: currentValue,
       [totalField]: totalValue,
       [averageField]: averageValue,
       [unitField]: unitCount,
@@ -127,21 +140,29 @@ const buildAveragePercentRate = (
     denominatorTotalField,
     numeratorAverageField,
     denominatorAverageField,
+    numeratorMonthField,
+    denominatorMonthField,
     ratioField,
     komentar,
   } = opts;
 
   const results = [];
 
-  for (let monthEnd = 2; monthEnd <= selectedMonth; monthEnd += 1) {
+  for (let monthEnd = 1; monthEnd <= selectedMonth; monthEnd += 1) {
     const totalNumerator = cumulativeTotal(numeratorMap, monthEnd);
     const totalDenominator = cumulativeTotal(denominatorMap, monthEnd);
     const averageNumerator = roundTwo(totalNumerator / monthEnd);
     const averageDenominator = roundTwo(totalDenominator / monthEnd);
+    const currentNumerator = roundTwo(numeratorMap.get(monthEnd) || 0);
+    const currentDenominator = roundTwo(denominatorMap.get(monthEnd) || 0);
 
     results.push({
       month_end: monthEnd,
       komentar,
+      [numeratorMonthField || toMonthValueField(numeratorTotalField)]:
+        currentNumerator,
+      [denominatorMonthField || toMonthValueField(denominatorTotalField)]:
+        currentDenominator,
       [numeratorTotalField]: totalNumerator,
       [denominatorTotalField]: totalDenominator,
       [numeratorAverageField]: averageNumerator,
@@ -624,7 +645,7 @@ module.exports = {
 
       // Ratio 2: kemacetan pembiayaan = cadangan piutang per tambahan (pembiayaan).
       const ratioDua = [];
-      for (let monthEnd = 2; monthEnd <= selectedMonth; monthEnd += 1) {
+      for (let monthEnd = 1; monthEnd <= selectedMonth; monthEnd += 1) {
         const totalCadanganPiutang = cumulativeTotal(cadanganPiutangByMonth, monthEnd);
         const totalTambahan = cumulativeTotal(pembiayaanByMonth, monthEnd);
         const totalMacetLama = cumulativeTotal(macetLamaByMonth, monthEnd);
@@ -636,11 +657,23 @@ module.exports = {
         const averageMacetLama = roundTwo(totalMacetLama / monthEnd);
         const averageStockKredit = roundTwo(totalStockKredit / monthEnd);
         const averageLeasing = roundTwo(totalLeasing / monthEnd);
+        const cadanganPiutangBulanIni = roundTwo(
+          cadanganPiutangByMonth.get(monthEnd) || 0
+        );
+        const tambahanBulanIni = roundTwo(pembiayaanByMonth.get(monthEnd) || 0);
+        const macetLamaBulanIni = roundTwo(macetLamaByMonth.get(monthEnd) || 0);
+        const stockKreditBulanIni = roundTwo(kreditByMonth.get(monthEnd) || 0);
+        const leasingBulanIni = roundTwo(leasingByMonth.get(monthEnd) || 0);
 
         ratioDua.push({
           month_end: monthEnd,
           komentar:
             "Ratio 2: (rata-rata kumulatif cadangan piutang / rata-rata kumulatif tambahan) x 100.",
+          cadangan_piutang_bulan_ini: cadanganPiutangBulanIni,
+          tambahan_bulan_ini: tambahanBulanIni,
+          macet_lama_bulan_ini: macetLamaBulanIni,
+          stock_kredit_bulan_ini: stockKreditBulanIni,
+          leasing_bulan_ini: leasingBulanIni,
           total_cadangan_piutang: totalCadanganPiutang,
           total_tambahan: totalTambahan,
           total_macet_lama: totalMacetLama,
@@ -723,7 +756,7 @@ module.exports = {
 
       // Ratio 7: pendapatan lain per jumlah pendapatan (denda & administrasi hanya informasi pendukung).
       const ratioTujuh = [];
-      for (let monthEnd = 2; monthEnd <= selectedMonth; monthEnd += 1) {
+      for (let monthEnd = 1; monthEnd <= selectedMonth; monthEnd += 1) {
         const totalPendapatanLain = cumulativeTotal(pendapatanLainByMonth, monthEnd);
         const totalJumlahPendapatan = cumulativeTotal(
           jumlahPendapatanByMonth,
@@ -736,11 +769,25 @@ module.exports = {
         const averageJumlahPendapatan = roundTwo(totalJumlahPendapatan / monthEnd);
         const averageDenda = roundTwo(totalDenda / monthEnd);
         const averageAdministrasi = roundTwo(totalAdministrasi / monthEnd);
+        const pendapatanLainBulanIni = roundTwo(
+          pendapatanLainByMonth.get(monthEnd) || 0
+        );
+        const jumlahPendapatanBulanIni = roundTwo(
+          jumlahPendapatanByMonth.get(monthEnd) || 0
+        );
+        const dendaBulanIni = roundTwo(dendaByMonth.get(monthEnd) || 0);
+        const administrasiBulanIni = roundTwo(
+          administrasiByMonth.get(monthEnd) || 0
+        );
 
         ratioTujuh.push({
           month_end: monthEnd,
           komentar:
             "Ratio 7: (rata-rata kumulatif pendapatan lain / rata-rata kumulatif jumlah pendapatan) x 100.",
+          jumlah_pendapatan_lain_bulan_ini: pendapatanLainBulanIni,
+          jumlah_pendapatan_bulan_ini: jumlahPendapatanBulanIni,
+          denda_bulan_ini: dendaBulanIni,
+          administrasi_bulan_ini: administrasiBulanIni,
           total_jumlah_pendapatan: totalJumlahPendapatan,
           total_denda: totalDenda,
           total_administrasi: totalAdministrasi,
@@ -835,7 +882,7 @@ module.exports = {
         selected_month: selectedMonth,
         unit_count: unitCount,
         komentar:
-          "Semua rate dihitung kumulatif dari bulan 1 sampai month_end (mulai month_end=2).",
+          "Semua rate dihitung kumulatif dari bulan 1 sampai month_end.",
         rate_satu: rateSatu,
         rate_dua: rateDua,
         rate_tiga: rateTiga,
