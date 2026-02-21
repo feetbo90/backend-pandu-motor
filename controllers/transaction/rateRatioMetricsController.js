@@ -733,6 +733,8 @@ const handleGetRatesRatios = async (req, res) => {
     }
 
     const descendants = await getAllDescendants(entityId);
+    const isRootUnit =
+      String(rootEntity.entity_type || "").toUpperCase() === "UNIT";
     const branchIds = descendants
       .map((item) => Number(item?.id))
       .filter((id) => Number.isInteger(id));
@@ -745,26 +747,7 @@ const handleGetRatesRatios = async (req, res) => {
       unitEntities.length
     );
 
-    const units = [];
-    for (const unit of unitEntities) {
-      const unitId = Number(unit.id);
-      if (!Number.isInteger(unitId)) continue;
-
-      const unitMetrics = await buildRatesAndRatios(
-        [unitId],
-        yearInt,
-        selectedMonth,
-        1
-      );
-
-      units.push({
-        unit_id: unitId,
-        unit_name: unit.name,
-        ...unitMetrics,
-      });
-    }
-
-    return res.json({
+    const response = {
       success: true,
       entity_id: entityId,
       entity_name: rootEntity.name,
@@ -776,8 +759,31 @@ const handleGetRatesRatios = async (req, res) => {
       komentar:
         "Jika entity adalah CABANG, perhitungan memakai cabang itu sendiri + semua turunannya.",
       ...metrics,
-      units,
-    });
+    };
+
+    if (!isRootUnit) {
+      const units = [];
+      for (const unit of unitEntities) {
+        const unitId = Number(unit.id);
+        if (!Number.isInteger(unitId)) continue;
+
+        const unitMetrics = await buildRatesAndRatios(
+          [unitId],
+          yearInt,
+          selectedMonth,
+          1
+        );
+
+        units.push({
+          unit_id: unitId,
+          unit_name: unit.name,
+          ...unitMetrics,
+        });
+      }
+      response.units = units;
+    }
+
+    return res.json(response);
   } catch (error) {
     console.error("Error in getRatesRatios:", error);
     return res.status(500).json({
