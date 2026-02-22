@@ -14,13 +14,22 @@ const { getAllDescendants } = require("../../utils/getDescendants.js");
 
 const toNumber = (value) => parseFloat(value || 0);
 const safeDivide = (numerator, denominator) =>
-  denominator > 0 ? numerator / denominator : 0;
+  denominator !== 0 ? numerator / denominator : 0;
 const roundTwo = (value) => Number(toNumber(value).toFixed(2));
 
-const buildMonthMap = (rows, fieldName) => {
+const buildMonthMap = (rows, fieldName, branchIdFilter) => {
   const map = new Map();
   rows.forEach((row) => {
-    map.set(Number(row.month), toNumber(row[fieldName]));
+    if (
+      branchIdFilter !== undefined &&
+      Number(row.branch_id) !== Number(branchIdFilter)
+    ) {
+      return;
+    }
+
+    const month = Number(row.month);
+    const currentValue = toNumber(map.get(month) || 0);
+    map.set(month, currentValue + toNumber(row[fieldName]));
   });
   return map;
 };
@@ -143,7 +152,12 @@ const buildAveragePercentSeries = (
   return result;
 };
 
-const buildRatesAndRatios = async (branchIds, yearInt, selectedMonth, unitCount) => {
+const fetchRatesAndRatiosAggregates = async (
+  branchIds,
+  yearInt,
+  selectedMonth,
+  groupByBranch = false
+) => {
   const baseWhere = {
     branch_id: branchIds,
     year: yearInt,
@@ -151,137 +165,237 @@ const buildRatesAndRatios = async (branchIds, yearInt, selectedMonth, unitCount)
     is_active: true,
   };
 
-  const piutangRows = await Piutang.findAll({
-    where: baseWhere,
-    attributes: [
-      "month",
-      [Sequelize.fn("SUM", Sequelize.col("tambahan")), "total_pembiayaan"],
-      [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "total_realisasi_pokok"],
-      [Sequelize.fn("SUM", Sequelize.col("saldo_akhir")), "total_saldo_akhir"],
-    ],
-    group: ["month"],
-    order: [["month", "ASC"]],
-    raw: true,
-  });
+  const dimensionAttrs = groupByBranch ? ["branch_id", "month"] : ["month"];
+  const dimensionGroup = groupByBranch ? ["branch_id", "month"] : ["month"];
 
-  const penjualanRows = await Penjualan.findAll({
-    where: baseWhere,
-    attributes: [
-      "month",
-      [
-        Sequelize.fn(
-          "SUM",
-          Sequelize.literal("unit_jualkredit + unit_jualleasing + unit_jualkontan")
-        ),
-        "total_unit_penjualan",
+  const [
+    piutangRows,
+    penjualanRows,
+    sumberDayaRows,
+    pendapatanRows,
+    pendapatanLainRows,
+    bebanRows,
+    sirkulasiRows,
+    labaRugiRows,
+  ] = await Promise.all([
+    Piutang.findAll({
+      where: baseWhere,
+      attributes: [
+        ...dimensionAttrs,
+        [Sequelize.fn("SUM", Sequelize.col("tambahan")), "total_pembiayaan"],
+        [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "total_realisasi_pokok"],
+        [Sequelize.fn("SUM", Sequelize.col("saldo_akhir")), "total_saldo_akhir"],
       ],
-      [
-        Sequelize.fn("SUM", Sequelize.literal("kontan + kredit + leasing")),
-        "total_penjualan",
+      group: dimensionGroup,
+      order: [["month", "ASC"]],
+      raw: true,
+    }),
+    Penjualan.findAll({
+      where: baseWhere,
+      attributes: [
+        ...dimensionAttrs,
+        [
+          Sequelize.fn(
+            "SUM",
+            Sequelize.literal("unit_jualkredit + unit_jualleasing + unit_jualkontan")
+          ),
+          "total_unit_penjualan",
+        ],
+        [
+          Sequelize.fn("SUM", Sequelize.literal("kontan + kredit + leasing")),
+          "total_penjualan",
+        ],
+        [Sequelize.fn("SUM", Sequelize.col("kredit")), "total_kredit"],
+        [Sequelize.fn("SUM", Sequelize.col("leasing")), "total_leasing"],
       ],
-      [Sequelize.fn("SUM", Sequelize.col("kredit")), "total_kredit"],
-      [Sequelize.fn("SUM", Sequelize.col("leasing")), "total_leasing"],
-    ],
-    group: ["month"],
-    order: [["month", "ASC"]],
-    raw: true,
-  });
+      group: dimensionGroup,
+      order: [["month", "ASC"]],
+      raw: true,
+    }),
+    SumberDaya.findAll({
+      where: baseWhere,
+      attributes: [
+        ...dimensionAttrs,
+        [Sequelize.fn("SUM", Sequelize.col("jumlah_karyawan")), "total_karyawan"],
+      ],
+      group: dimensionGroup,
+      order: [["month", "ASC"]],
+      raw: true,
+    }),
+    Pendapatan.findAll({
+      where: baseWhere,
+      attributes: [
+        ...dimensionAttrs,
+        [Sequelize.fn("SUM", Sequelize.col("markup_jumlah")), "total_markup"],
+        [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "total_realisasi_bunga"],
+        [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan")), "total_jumlah_pendapatan"],
+        [Sequelize.fn("SUM", Sequelize.col("denda")), "total_denda"],
+        [Sequelize.fn("SUM", Sequelize.col("administrasi")), "total_administrasi"],
+      ],
+      group: dimensionGroup,
+      order: [["month", "ASC"]],
+      raw: true,
+    }),
+    PendapatanLain.findAll({
+      where: baseWhere,
+      attributes: [
+        ...dimensionAttrs,
+        [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan_lain")), "total_pendapatan_lain"],
+      ],
+      group: dimensionGroup,
+      order: [["month", "ASC"]],
+      raw: true,
+    }),
+    Beban.findAll({
+      where: baseWhere,
+      attributes: [
+        ...dimensionAttrs,
+        [Sequelize.fn("SUM", Sequelize.col("gaji")), "total_gaji"],
+        [Sequelize.fn("SUM", Sequelize.col("operasional")), "total_operasional"],
+        [Sequelize.fn("SUM", Sequelize.col("penyusutan_aktiva")), "total_penyusutan"],
+        [Sequelize.fn("SUM", Sequelize.col("cadangan_piutang")), "total_cadangan_piutang"],
+        [Sequelize.fn("SUM", Sequelize.col("cadangan_stock")), "total_cadangan_stock"],
+      ],
+      group: dimensionGroup,
+      order: [["month", "ASC"]],
+      raw: true,
+    }),
+    SirkulasiPiutang.findAll({
+      where: baseWhere,
+      attributes: [
+        ...dimensionAttrs,
+        [Sequelize.fn("SUM", Sequelize.col("macet_lama")), "total_macet_lama"],
+      ],
+      group: dimensionGroup,
+      order: [["month", "ASC"]],
+      raw: true,
+    }),
+    LabaRugi.findAll({
+      where: baseWhere,
+      attributes: [
+        ...dimensionAttrs,
+        [Sequelize.fn("SUM", Sequelize.col("kumulatif")), "total_kumulatif"],
+      ],
+      group: dimensionGroup,
+      order: [["month", "ASC"]],
+      raw: true,
+    }),
+  ]);
 
-  const sumberDayaRows = await SumberDaya.findAll({
-    where: baseWhere,
-    attributes: [
-      "month",
-      [Sequelize.fn("SUM", Sequelize.col("jumlah_karyawan")), "total_karyawan"],
-    ],
-    group: ["month"],
-    order: [["month", "ASC"]],
-    raw: true,
-  });
+  return {
+    piutangRows,
+    penjualanRows,
+    sumberDayaRows,
+    pendapatanRows,
+    pendapatanLainRows,
+    bebanRows,
+    sirkulasiRows,
+    labaRugiRows,
+  };
+};
 
-  const pendapatanRows = await Pendapatan.findAll({
-    where: baseWhere,
-    attributes: [
-      "month",
-      [Sequelize.fn("SUM", Sequelize.col("markup_jumlah")), "total_markup"],
-      [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "total_realisasi_bunga"],
-      [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan")), "total_jumlah_pendapatan"],
-      [Sequelize.fn("SUM", Sequelize.col("denda")), "total_denda"],
-      [Sequelize.fn("SUM", Sequelize.col("administrasi")), "total_administrasi"],
-    ],
-    group: ["month"],
-    order: [["month", "ASC"]],
-    raw: true,
-  });
+const buildRatesAndRatiosFromAggregates = (
+  aggregates,
+  selectedMonth,
+  unitCount,
+  branchIdFilter
+) => {
+  const {
+    piutangRows,
+    penjualanRows,
+    sumberDayaRows,
+    pendapatanRows,
+    pendapatanLainRows,
+    bebanRows,
+    sirkulasiRows,
+    labaRugiRows,
+  } = aggregates;
 
-  const pendapatanLainRows = await PendapatanLain.findAll({
-    where: baseWhere,
-    attributes: [
-      "month",
-      [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan_lain")), "total_pendapatan_lain"],
-    ],
-    group: ["month"],
-    order: [["month", "ASC"]],
-    raw: true,
-  });
-
-  const bebanRows = await Beban.findAll({
-    where: baseWhere,
-    attributes: [
-      "month",
-      [Sequelize.fn("SUM", Sequelize.col("gaji")), "total_gaji"],
-      [Sequelize.fn("SUM", Sequelize.col("operasional")), "total_operasional"],
-      [Sequelize.fn("SUM", Sequelize.col("penyusutan_aktiva")), "total_penyusutan"],
-      [Sequelize.fn("SUM", Sequelize.col("cadangan_piutang")), "total_cadangan_piutang"],
-      [Sequelize.fn("SUM", Sequelize.col("cadangan_stock")), "total_cadangan_stock"],
-    ],
-    group: ["month"],
-    order: [["month", "ASC"]],
-    raw: true,
-  });
-
-  const sirkulasiRows = await SirkulasiPiutang.findAll({
-    where: baseWhere,
-    attributes: [
-      "month",
-      [Sequelize.fn("SUM", Sequelize.col("macet_lama")), "total_macet_lama"],
-    ],
-    group: ["month"],
-    order: [["month", "ASC"]],
-    raw: true,
-  });
-
-  const labaRugiRows = await LabaRugi.findAll({
-    where: baseWhere,
-    attributes: [
-      "month",
-      [Sequelize.fn("SUM", Sequelize.col("kumulatif")), "total_kumulatif"],
-    ],
-    group: ["month"],
-    order: [["month", "ASC"]],
-    raw: true,
-  });
-
-  const pembiayaanByMonth = buildMonthMap(piutangRows, "total_pembiayaan");
-  const realisasiPokokByMonth = buildMonthMap(piutangRows, "total_realisasi_pokok");
-  const saldoAkhirByMonth = buildMonthMap(piutangRows, "total_saldo_akhir");
-  const unitPenjualanByMonth = buildMonthMap(penjualanRows, "total_unit_penjualan");
-  const penjualanByMonth = buildMonthMap(penjualanRows, "total_penjualan");
-  const kreditByMonth = buildMonthMap(penjualanRows, "total_kredit");
-  const leasingByMonth = buildMonthMap(penjualanRows, "total_leasing");
-  const karyawanByMonth = buildMonthMap(sumberDayaRows, "total_karyawan");
-  const markupByMonth = buildMonthMap(pendapatanRows, "total_markup");
-  const realisasiBungaByMonth = buildMonthMap(pendapatanRows, "total_realisasi_bunga");
-  const jumlahPendapatanByMonth = buildMonthMap(pendapatanRows, "total_jumlah_pendapatan");
-  const dendaByMonth = buildMonthMap(pendapatanRows, "total_denda");
-  const administrasiByMonth = buildMonthMap(pendapatanRows, "total_administrasi");
-  const pendapatanLainByMonth = buildMonthMap(pendapatanLainRows, "total_pendapatan_lain");
-  const gajiByMonth = buildMonthMap(bebanRows, "total_gaji");
-  const operasionalByMonth = buildMonthMap(bebanRows, "total_operasional");
-  const penyusutanByMonth = buildMonthMap(bebanRows, "total_penyusutan");
-  const cadanganPiutangByMonth = buildMonthMap(bebanRows, "total_cadangan_piutang");
-  const cadanganStockByMonth = buildMonthMap(bebanRows, "total_cadangan_stock");
-  const macetLamaByMonth = buildMonthMap(sirkulasiRows, "total_macet_lama");
-  const kumulatifByMonth = buildMonthMap(labaRugiRows, "total_kumulatif");
+  const pembiayaanByMonth = buildMonthMap(
+    piutangRows,
+    "total_pembiayaan",
+    branchIdFilter
+  );
+  const realisasiPokokByMonth = buildMonthMap(
+    piutangRows,
+    "total_realisasi_pokok",
+    branchIdFilter
+  );
+  const saldoAkhirByMonth = buildMonthMap(
+    piutangRows,
+    "total_saldo_akhir",
+    branchIdFilter
+  );
+  const unitPenjualanByMonth = buildMonthMap(
+    penjualanRows,
+    "total_unit_penjualan",
+    branchIdFilter
+  );
+  const penjualanByMonth = buildMonthMap(
+    penjualanRows,
+    "total_penjualan",
+    branchIdFilter
+  );
+  const kreditByMonth = buildMonthMap(penjualanRows, "total_kredit", branchIdFilter);
+  const leasingByMonth = buildMonthMap(penjualanRows, "total_leasing", branchIdFilter);
+  const karyawanByMonth = buildMonthMap(
+    sumberDayaRows,
+    "total_karyawan",
+    branchIdFilter
+  );
+  const markupByMonth = buildMonthMap(pendapatanRows, "total_markup", branchIdFilter);
+  const realisasiBungaByMonth = buildMonthMap(
+    pendapatanRows,
+    "total_realisasi_bunga",
+    branchIdFilter
+  );
+  const jumlahPendapatanByMonth = buildMonthMap(
+    pendapatanRows,
+    "total_jumlah_pendapatan",
+    branchIdFilter
+  );
+  const dendaByMonth = buildMonthMap(pendapatanRows, "total_denda", branchIdFilter);
+  const administrasiByMonth = buildMonthMap(
+    pendapatanRows,
+    "total_administrasi",
+    branchIdFilter
+  );
+  const pendapatanLainByMonth = buildMonthMap(
+    pendapatanLainRows,
+    "total_pendapatan_lain",
+    branchIdFilter
+  );
+  const gajiByMonth = buildMonthMap(bebanRows, "total_gaji", branchIdFilter);
+  const operasionalByMonth = buildMonthMap(
+    bebanRows,
+    "total_operasional",
+    branchIdFilter
+  );
+  const penyusutanByMonth = buildMonthMap(
+    bebanRows,
+    "total_penyusutan",
+    branchIdFilter
+  );
+  const cadanganPiutangByMonth = buildMonthMap(
+    bebanRows,
+    "total_cadangan_piutang",
+    branchIdFilter
+  );
+  const cadanganStockByMonth = buildMonthMap(
+    bebanRows,
+    "total_cadangan_stock",
+    branchIdFilter
+  );
+  const macetLamaByMonth = buildMonthMap(
+    sirkulasiRows,
+    "total_macet_lama",
+    branchIdFilter
+  );
+  const kumulatifByMonth = buildMonthMap(
+    labaRugiRows,
+    "total_kumulatif",
+    branchIdFilter
+  );
 
   const bebanGabunganByMonth = new Map();
   const cadanganTotalByMonth = new Map();
@@ -696,6 +810,15 @@ const buildRatesAndRatios = async (branchIds, yearInt, selectedMonth, unitCount)
   };
 };
 
+const buildRatesAndRatios = async (branchIds, yearInt, selectedMonth, unitCount) => {
+  const aggregates = await fetchRatesAndRatiosAggregates(
+    branchIds,
+    yearInt,
+    selectedMonth
+  );
+  return buildRatesAndRatiosFromAggregates(aggregates, selectedMonth, unitCount);
+};
+
 const handleGetRatesRatios = async (req, res) => {
   try {
     const { entity_id } = req.params;
@@ -762,16 +885,22 @@ const handleGetRatesRatios = async (req, res) => {
     };
 
     if (!isRootUnit) {
+      const unitIds = unitEntities
+        .map((item) => Number(item?.id))
+        .filter((id) => Number.isInteger(id));
+      const unitAggregates = unitIds.length
+        ? await fetchRatesAndRatiosAggregates(unitIds, yearInt, selectedMonth, true)
+        : null;
       const units = [];
       for (const unit of unitEntities) {
         const unitId = Number(unit.id);
         if (!Number.isInteger(unitId)) continue;
 
-        const unitMetrics = await buildRatesAndRatios(
-          [unitId],
-          yearInt,
+        const unitMetrics = buildRatesAndRatiosFromAggregates(
+          unitAggregates,
           selectedMonth,
-          1
+          1,
+          unitId
         );
 
         units.push({
