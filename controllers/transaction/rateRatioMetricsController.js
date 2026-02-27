@@ -16,6 +16,7 @@ const toNumber = (value) => parseFloat(value || 0);
 const safeDivide = (numerator, denominator) =>
   denominator !== 0 ? numerator / denominator : 0;
 const roundTwo = (value) => Math.round(toNumber(value));
+const roundRatio = (value) => Number(toNumber(value).toFixed(2));
 
 const buildMonthMap = (rows, fieldName, branchIdFilter) => {
   const map = new Map();
@@ -79,7 +80,7 @@ const buildAverageRateSeries = (
       [denominatorTotalField]: roundTwo(denominatorTotal),
       [`${averageNumeratorBase}_r${monthEnd}`]: roundTwo(averageNumerator),
       [`${averageDenominatorBase}_r${monthEnd}`]: roundTwo(averageDenominator),
-      [ratioField]: roundTwo(safeDivide(averageNumerator, averageDenominator)),
+      [ratioField]: roundRatio(safeDivide(averageNumerator, averageDenominator)),
     });
   }
 
@@ -149,7 +150,7 @@ const buildAveragePercentSeries = (
       [denominatorTotalField]: roundTwo(denominatorTotal),
       [`${averageNumeratorBase}_r${monthEnd}`]: roundTwo(averageNumerator),
       [`${averageDenominatorBase}_r${monthEnd}`]: roundTwo(averageDenominator),
-      [ratioField]: roundTwo(safeDivide(averageNumerator, averageDenominator) * 100),
+      [ratioField]: roundRatio(safeDivide(averageNumerator, averageDenominator) * 100),
     });
   }
 
@@ -714,7 +715,7 @@ const buildRatesAndRatiosFromAggregates = (
     };
   });
 
-  const ratio_satu = buildAveragePercentSeries(
+  let ratio_satu = buildAveragePercentSeries(
     selectedMonth,
     pembiayaanByMonth,
     realisasiPokokByMonth,
@@ -728,12 +729,25 @@ const buildRatesAndRatiosFromAggregates = (
       ratioField: "pembiayaan_per_realisasi_pokok",
     }
   );
+  ratio_satu = ratio_satu.map((item) => {
+    const pembiayaanBulanIni = toNumber(item.pembiayaan_bulan_ini || 0);
+    const realisasiPokokBulanIni = toNumber(item.realisasi_pokok_bulan_ini || 0);
+
+    return {
+      ...item,
+      pembiayaan_per_realisasi_pokok: roundRatio(
+        safeDivide(pembiayaanBulanIni, realisasiPokokBulanIni)
+      ),
+    };
+  });
 
   const ratio_dua = [];
   for (let monthEnd = 1; monthEnd <= selectedMonth; monthEnd += 1) {
     const cadanganPiutangMonth = toNumber(cadanganPiutangByMonth.get(monthEnd) || 0);
     const tambahanMonth = toNumber(pembiayaanByMonth.get(monthEnd) || 0);
-    const macetLamaMonth = toNumber(macetLamaByMonth.get(monthEnd) || 0);
+    const macetLamaCurrent = toNumber(macetLamaByMonth.get(monthEnd) || 0);
+    const macetLamaPrevious = toNumber(macetLamaByMonth.get(monthEnd - 1) || 0);
+    const kenaikanMacetLama = macetLamaCurrent - macetLamaPrevious;
     const stockKreditMonth = toNumber(kreditByMonth.get(monthEnd) || 0);
     const leasingMonth = toNumber(leasingByMonth.get(monthEnd) || 0);
 
@@ -753,7 +767,7 @@ const buildRatesAndRatiosFromAggregates = (
       month_end: monthEnd,
       cadangan_piutang_bulan_ini: roundTwo(cadanganPiutangMonth),
       tambahan_bulan_ini: roundTwo(tambahanMonth),
-      macet_lama_bulan_ini: roundTwo(macetLamaMonth),
+      macet_lama_bulan_ini: roundTwo(macetLamaCurrent),
       stock_kredit_bulan_ini: roundTwo(stockKreditMonth),
       leasing_bulan_ini: roundTwo(leasingMonth),
       total_cadangan_piutang: roundTwo(cadanganPiutangTotal),
@@ -766,13 +780,13 @@ const buildRatesAndRatiosFromAggregates = (
       [`average_macet_lama_r${monthEnd}`]: roundTwo(averageMacetLama),
       [`average_stock_kredit_r${monthEnd}`]: roundTwo(averageStockKredit),
       [`average_leasing_r${monthEnd}`]: roundTwo(averageLeasing),
-      rasio_kemacetan_pembiayaan: roundTwo(
-        safeDivide(averageCadanganPiutang, averageTambahan) * 100
+      rasio_kemacetan_pembiayaan: roundRatio(
+        safeDivide(kenaikanMacetLama, tambahanMonth)
       ),
     });
   }
 
-  const ratio_tiga = buildAveragePercentSeries(
+  let ratio_tiga = buildAveragePercentSeries(
     selectedMonth,
     markupByMonth,
     pembiayaanByMonth,
@@ -786,6 +800,15 @@ const buildRatesAndRatiosFromAggregates = (
       ratioField: "rasio_markup",
     }
   );
+  ratio_tiga = ratio_tiga.map((item) => {
+    const markupBulanIni = toNumber(item.markup_bulan_ini || 0);
+    const pembiayaanBulanIni = toNumber(item.pembiayaan_bulan_ini || 0);
+
+    return {
+      ...item,
+      rasio_markup: roundRatio(safeDivide(markupBulanIni, pembiayaanBulanIni)),
+    };
+  });
 
   const ratio_empat = buildAveragePercentSeries(
     selectedMonth,
@@ -863,7 +886,7 @@ const buildRatesAndRatiosFromAggregates = (
       [`average_jumlah_pendapatan_r${monthEnd}`]: roundTwo(averageJumlahPendapatan),
       [`average_denda_r${monthEnd}`]: roundTwo(averageDenda),
       [`average_administrasi_r${monthEnd}`]: roundTwo(averageAdministrasi),
-      rasio_pendapatan_lainnya_per_jumlah_pendapatan: roundTwo(
+      rasio_pendapatan_lainnya_per_jumlah_pendapatan: roundRatio(
         safeDivide(averagePendapatanLain, averageJumlahPendapatan) * 100
       ),
     });
