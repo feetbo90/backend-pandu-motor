@@ -10,7 +10,7 @@ const modelConfig = {
       "branch_id", "period_id", "year", "month",
       "markup_kontan", "markup_kredit", "markup_jumlah",
       "realisasi_bunga", "diskon_bunga", "denda", "administrasi",
-      "jumlah_pendapatan", "version", "is_active", "change_id"
+      "pendapatan_lain", "jumlah_pendapatan", "version", "is_active", "change_id"
     ]
   },
   // contoh model lain (bisa ditambah sesuai kebutuhan)

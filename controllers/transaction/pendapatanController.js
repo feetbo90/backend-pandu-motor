@@ -153,7 +153,17 @@ module.exports = {
   // PUT /api/pendapatan/:id
   async update(req, res) {
     try {
-      const { markup_kontan, markup_kredit, markup_jumlah, realisasi_bunga, diskon_bunga, denda, administrasi, jumlah_pendapatan } = req.body;
+      const {
+        markup_kontan,
+        markup_kredit,
+        markup_jumlah,
+        realisasi_bunga,
+        diskon_bunga,
+        denda,
+        administrasi,
+        pendapatan_lain,
+        jumlah_pendapatan,
+      } = req.body;
 
       const data = await Pendapatan.findByPk(req.params.id);
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
@@ -170,6 +180,7 @@ module.exports = {
         diskon_bunga: diskon_bunga ?? data.diskon_bunga,
         denda: denda ?? data.denda,
         administrasi: administrasi ?? data.administrasi,
+        pendapatan_lain: pendapatan_lain ?? data.pendapatan_lain,
         jumlah_pendapatan: jumlah_pendapatan ?? data.jumlah_pendapatan,
         change_id: uuidv4(),
         updated_at: new Date(),

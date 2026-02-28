@@ -2,11 +2,41 @@ const fs = require("fs");
 const path = require("path");
 const { Pendapatan, Penjualan, PendapatanLain, Piutang, SirkulasiPiutang, SirkulasiStock, BarangPk, Beban, SumberDaya } = require("../../models");
 
+const pendapatanColumns = [
+  "id",
+  "branch_id",
+  "period_id",
+  "year",
+  "month",
+  "markup_kontan",
+  "markup_kredit",
+  "markup_jumlah",
+  "realisasi_bunga",
+  "diskon_bunga",
+  "denda",
+  "administrasi",
+  "pendapatan_lain",
+  "jumlah_pendapatan",
+  "change_id",
+  "created_at",
+  "updated_at",
+  "version",
+  "is_active",
+];
+
+const pickColumns = (row, columns) =>
+  columns.reduce((acc, col) => {
+    acc[col] = row[col];
+    return acc;
+  }, {});
+
 // export pendapatan
 exports.exportPendapatan = async (req, res) => {
   try {
     const data = await Pendapatan.findAll({ raw: true });
-    const jsonData = { pendapatan: data };
+    const jsonData = {
+      pendapatan: data.map((row) => pickColumns(row, pendapatanColumns)),
+    };
 
     const filePath = path.join(__dirname, "../pendapatan.json");
     fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
@@ -45,7 +75,8 @@ exports.exportAll = async (req, res) => {
       }
     }
 
-    const pendapatan = await Pendapatan.findAll({ where: whereFilter, raw: true });
+    const pendapatanRows = await Pendapatan.findAll({ where: whereFilter, raw: true });
+    const pendapatan = pendapatanRows.map((row) => pickColumns(row, pendapatanColumns));
     const penjualan = await Penjualan.findAll({ where: whereFilter, raw: true });
     const pendapatanLain = await PendapatanLain.findAll({ where: whereFilter, raw: true });
     const piutang = await Piutang.findAll({ where: whereFilter, raw: true });
@@ -78,4 +109,3 @@ exports.exportAll = async (req, res) => {
     });
   }
 };
-

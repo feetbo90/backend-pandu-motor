@@ -189,7 +189,6 @@ const fetchRatesAndRatiosAggregates = async (
         ...dimensionAttrs,
         [Sequelize.fn("SUM", Sequelize.col("tambahan")), "total_pembiayaan"],
         [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "total_realisasi_pokok"],
-        [Sequelize.fn("SUM", Sequelize.col("saldo_akhir")), "total_saldo_akhir"],
       ],
       group: dimensionGroup,
       order: [["month", "ASC"]],
@@ -236,6 +235,7 @@ const fetchRatesAndRatiosAggregates = async (
         [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan")), "total_jumlah_pendapatan"],
         [Sequelize.fn("SUM", Sequelize.col("denda")), "total_denda"],
         [Sequelize.fn("SUM", Sequelize.col("administrasi")), "total_administrasi"],
+        [Sequelize.fn("SUM", Sequelize.col("pendapatan_lain")), "total_pendapatan_lain_pendapatan"],
       ],
       group: dimensionGroup,
       order: [["month", "ASC"]],
@@ -270,6 +270,7 @@ const fetchRatesAndRatiosAggregates = async (
       attributes: [
         ...dimensionAttrs,
         [Sequelize.fn("SUM", Sequelize.col("macet_lama")), "total_macet_lama"],
+        [Sequelize.fn("SUM", Sequelize.col("total")), "total_saldo_akhir"],
       ],
       group: dimensionGroup,
       order: [["month", "ASC"]],
@@ -327,7 +328,7 @@ const buildRatesAndRatiosFromAggregates = (
     branchIdFilter
   );
   const saldoAkhirByMonth = buildMonthMap(
-    piutangRows,
+    sirkulasiRows,
     "total_saldo_akhir",
     branchIdFilter
   );
@@ -363,6 +364,11 @@ const buildRatesAndRatiosFromAggregates = (
   const administrasiByMonth = buildMonthMap(
     pendapatanRows,
     "total_administrasi",
+    branchIdFilter
+  );
+  const pendapatanLainPendapatanByMonth = buildMonthMap(
+    pendapatanRows,
+    "total_pendapatan_lain_pendapatan",
     branchIdFilter
   );
   const pendapatanLainByMonth = buildMonthMap(
@@ -436,13 +442,13 @@ const buildRatesAndRatiosFromAggregates = (
     const roundedAverageUnitPenjualan = roundTwo(averageUnitPenjualan);
     const pendapatanAdministrasi = toNumber(administrasiByMonth.get(monthEnd) || 0);
     const pendapatanDenda = toNumber(dendaByMonth.get(monthEnd) || 0);
-    const pendapatanLain = toNumber(pendapatanLainByMonth.get(monthEnd) || 0);
+    const pendapatanLainBulanIni = toNumber(
+      pendapatanLainPendapatanByMonth.get(monthEnd) || 0
+    );
     const administrasiTotal = cumulativeTotal(administrasiByMonth, monthEnd);
     const dendaTotal = cumulativeTotal(dendaByMonth, monthEnd);
-    const pendapatanLainTotal = cumulativeTotal(pendapatanLainByMonth, monthEnd);
     const averagePendapatanAdministrasi = administrasiTotal / monthEnd;
     const averagePendapatanDenda = dendaTotal / monthEnd;
-    const averagePendapatanLain = pendapatanLainTotal / monthEnd;
     const averageUnitPembiayaanKey = `average_unit_pembiayaan_r${monthEnd}`;
     const averageUnitPenjualanKey = `average_unit_penjualan_r${monthEnd}`;
     const averageUnitPembiayaanValue = toNumber(item[averageUnitPembiayaanKey]);
@@ -464,8 +470,7 @@ const buildRatesAndRatiosFromAggregates = (
       ),
       pendapatan_denda: roundTwo(pendapatanDenda),
       [`average_pendapatan_denda_r${monthEnd}`]: roundTwo(averagePendapatanDenda),
-      jumlah_pendapatan_lain: roundTwo(pendapatanLain),
-      [`average_jumlah_pendapatan_lain_r${monthEnd}`]: roundTwo(averagePendapatanLain),
+      pendapatan_lain_bulan_ini: roundTwo(pendapatanLainBulanIni),
     };
   });
 
@@ -810,22 +815,30 @@ const buildRatesAndRatiosFromAggregates = (
     };
   });
 
-  const ratio_empat = buildAveragePercentSeries(
-    selectedMonth,
-    realisasiBungaByMonth,
-    saldoAkhirByMonth,
-    {
-      numeratorMonthField: "realisasi_bunga_bulan_ini",
-      denominatorMonthField: "saldo_akhir_bulan_ini",
-      numeratorTotalField: "total_realisasi_bunga",
-      denominatorTotalField: "total_saldo_akhir",
-      averageNumeratorBase: "average_realisasi_bunga",
-      averageDenominatorBase: "average_saldo_akhir",
-      ratioField: "rasio_realisasi_bunga_per_total_piutang",
-    }
-  );
+  const ratio_empat = [];
+  for (let monthEnd = 1; monthEnd <= selectedMonth; monthEnd += 1) {
+    const realisasiBungaMonth = toNumber(realisasiBungaByMonth.get(monthEnd) || 0);
+    const saldoAkhirMonth = toNumber(saldoAkhirByMonth.get(monthEnd) || 0);
+    const realisasiBungaTotal = cumulativeTotal(realisasiBungaByMonth, monthEnd);
+    const saldoAkhirTotal = cumulativeTotal(saldoAkhirByMonth, monthEnd);
+    const averageRealisasiBunga = realisasiBungaTotal / monthEnd;
+    const averageSaldoAkhir = saldoAkhirTotal / monthEnd;
 
-  const ratio_lima = buildAveragePercentSeries(
+    ratio_empat.push({
+      month_end: monthEnd,
+      realisasi_bunga_bulan_ini: roundTwo(realisasiBungaMonth),
+      saldo_akhir_bulan_ini: roundTwo(saldoAkhirMonth),
+      total_realisasi_bunga: roundTwo(realisasiBungaTotal),
+      total_saldo_akhir: roundTwo(saldoAkhirTotal),
+      [`average_realisasi_bunga_r${monthEnd}`]: roundTwo(averageRealisasiBunga),
+      [`average_saldo_akhir_r${monthEnd}`]: roundTwo(averageSaldoAkhir),
+      rasio_realisasi_bunga_per_total_piutang: roundRatio(
+        safeDivide(realisasiBungaMonth, saldoAkhirMonth)
+      ),
+    });
+  }
+
+  let ratio_lima = buildAveragePercentSeries(
     selectedMonth,
     markupByMonth,
     jumlahPendapatanByMonth,
@@ -839,8 +852,19 @@ const buildRatesAndRatiosFromAggregates = (
       ratioField: "rasio_markup_per_jumlah_pendapatan",
     }
   );
+  ratio_lima = ratio_lima.map((item) => {
+    const markupBulanIni = toNumber(item.markup_bulan_ini || 0);
+    const jumlahPendapatanBulanIni = toNumber(item.jumlah_pendapatan_bulan_ini || 0);
 
-  const ratio_enam = buildAveragePercentSeries(
+    return {
+      ...item,
+      rasio_markup_per_jumlah_pendapatan: roundRatio(
+        safeDivide(markupBulanIni, jumlahPendapatanBulanIni)
+      ),
+    };
+  });
+
+  let ratio_enam = buildAveragePercentSeries(
     selectedMonth,
     realisasiBungaByMonth,
     jumlahPendapatanByMonth,
@@ -854,15 +878,31 @@ const buildRatesAndRatiosFromAggregates = (
       ratioField: "rasio_pendapatan_bunga_per_jumlah_pendapatan",
     }
   );
+  ratio_enam = ratio_enam.map((item) => {
+    const realisasiBungaBulanIni = toNumber(item.realisasi_bunga_bulan_ini || 0);
+    const jumlahPendapatanBulanIni = toNumber(item.jumlah_pendapatan_bulan_ini || 0);
+
+    return {
+      ...item,
+      rasio_pendapatan_bunga_per_jumlah_pendapatan: roundRatio(
+        safeDivide(realisasiBungaBulanIni, jumlahPendapatanBulanIni)
+      ),
+    };
+  });
 
   const ratio_tujuh = [];
   for (let monthEnd = 1; monthEnd <= selectedMonth; monthEnd += 1) {
-    const pendapatanLainMonth = toNumber(pendapatanLainByMonth.get(monthEnd) || 0);
+    const pendapatanLainMonth = toNumber(
+      pendapatanLainPendapatanByMonth.get(monthEnd) || 0
+    );
     const jumlahPendapatanMonth = toNumber(jumlahPendapatanByMonth.get(monthEnd) || 0);
     const dendaMonth = toNumber(dendaByMonth.get(monthEnd) || 0);
     const administrasiMonth = toNumber(administrasiByMonth.get(monthEnd) || 0);
 
-    const pendapatanLainTotal = cumulativeTotal(pendapatanLainByMonth, monthEnd);
+    const pendapatanLainTotal = cumulativeTotal(
+      pendapatanLainPendapatanByMonth,
+      monthEnd
+    );
     const jumlahPendapatanTotal = cumulativeTotal(jumlahPendapatanByMonth, monthEnd);
     const dendaTotal = cumulativeTotal(dendaByMonth, monthEnd);
     const administrasiTotal = cumulativeTotal(administrasiByMonth, monthEnd);
@@ -887,12 +927,12 @@ const buildRatesAndRatiosFromAggregates = (
       [`average_denda_r${monthEnd}`]: roundTwo(averageDenda),
       [`average_administrasi_r${monthEnd}`]: roundTwo(averageAdministrasi),
       rasio_pendapatan_lainnya_per_jumlah_pendapatan: roundRatio(
-        safeDivide(averagePendapatanLain, averageJumlahPendapatan) * 100
+        safeDivide(pendapatanLainMonth, jumlahPendapatanMonth)
       ),
     });
   }
 
-  const ratio_delapan = buildAveragePercentSeries(
+  let ratio_delapan = buildAveragePercentSeries(
     selectedMonth,
     gajiByMonth,
     jumlahPendapatanByMonth,
@@ -906,8 +946,19 @@ const buildRatesAndRatiosFromAggregates = (
       ratioField: "rasio_gaji_per_pendapatan",
     }
   );
+  ratio_delapan = ratio_delapan.map((item) => {
+    const gajiBulanIni = toNumber(item.gaji_bulan_ini || 0);
+    const jumlahPendapatanBulanIni = toNumber(item.jumlah_pendapatan_bulan_ini || 0);
 
-  const ratio_sembilan = buildAveragePercentSeries(
+    return {
+      ...item,
+      rasio_gaji_per_pendapatan: roundRatio(
+        safeDivide(gajiBulanIni, jumlahPendapatanBulanIni)
+      ),
+    };
+  });
+
+  let ratio_sembilan = buildAveragePercentSeries(
     selectedMonth,
     operasionalByMonth,
     jumlahPendapatanByMonth,
@@ -921,8 +972,19 @@ const buildRatesAndRatiosFromAggregates = (
       ratioField: "rasio_operasional_per_pendapatan",
     }
   );
+  ratio_sembilan = ratio_sembilan.map((item) => {
+    const operasionalBulanIni = toNumber(item.operasional_bulan_ini || 0);
+    const jumlahPendapatanBulanIni = toNumber(item.jumlah_pendapatan_bulan_ini || 0);
 
-  const ratio_sepuluh = buildAveragePercentSeries(
+    return {
+      ...item,
+      rasio_operasional_per_pendapatan: roundRatio(
+        safeDivide(operasionalBulanIni, jumlahPendapatanBulanIni)
+      ),
+    };
+  });
+
+  let ratio_sepuluh = buildAveragePercentSeries(
     selectedMonth,
     penyusutanByMonth,
     jumlahPendapatanByMonth,
@@ -936,8 +998,19 @@ const buildRatesAndRatiosFromAggregates = (
       ratioField: "rasio_penyusutan_per_pendapatan",
     }
   );
+  ratio_sepuluh = ratio_sepuluh.map((item) => {
+    const penyusutanBulanIni = toNumber(item.penyusutan_bulan_ini || 0);
+    const jumlahPendapatanBulanIni = toNumber(item.jumlah_pendapatan_bulan_ini || 0);
 
-  const ratio_sebelas = buildAveragePercentSeries(
+    return {
+      ...item,
+      rasio_penyusutan_per_pendapatan: roundRatio(
+        safeDivide(penyusutanBulanIni, jumlahPendapatanBulanIni)
+      ),
+    };
+  });
+
+  let ratio_sebelas = buildAveragePercentSeries(
     selectedMonth,
     cadanganTotalByMonth,
     jumlahPendapatanByMonth,
@@ -951,6 +1024,17 @@ const buildRatesAndRatiosFromAggregates = (
       ratioField: "rasio_cadangan_per_pendapatan",
     }
   );
+  ratio_sebelas = ratio_sebelas.map((item) => {
+    const cadanganBulanIni = toNumber(item.cadangan_bulan_ini || 0);
+    const jumlahPendapatanBulanIni = toNumber(item.jumlah_pendapatan_bulan_ini || 0);
+
+    return {
+      ...item,
+      rasio_cadangan_per_pendapatan: roundRatio(
+        safeDivide(cadanganBulanIni, jumlahPendapatanBulanIni)
+      ),
+    };
+  });
 
   return {
     rate_satu,
