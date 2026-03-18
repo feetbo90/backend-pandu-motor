@@ -741,7 +741,7 @@ const buildRatesAndRatiosFromAggregates = (
     return {
       ...item,
       pembiayaan_per_realisasi_pokok: roundRatio(
-        safeDivide(pembiayaanBulanIni, realisasiPokokBulanIni)
+        safeDivide(pembiayaanBulanIni, realisasiPokokBulanIni) * 100
       ),
     };
   });
@@ -786,7 +786,7 @@ const buildRatesAndRatiosFromAggregates = (
       [`average_stock_kredit_r${monthEnd}`]: roundTwo(averageStockKredit),
       [`average_leasing_r${monthEnd}`]: roundTwo(averageLeasing),
       rasio_kemacetan_pembiayaan: roundRatio(
-        safeDivide(kenaikanMacetLama, tambahanMonth)
+        safeDivide(kenaikanMacetLama, tambahanMonth) * 100
       ),
     });
   }
@@ -811,7 +811,9 @@ const buildRatesAndRatiosFromAggregates = (
 
     return {
       ...item,
-      rasio_markup: roundRatio(safeDivide(markupBulanIni, pembiayaanBulanIni)),
+      rasio_markup: roundRatio(
+        safeDivide(markupBulanIni, pembiayaanBulanIni) * 100
+      ),
     };
   });
 
@@ -833,7 +835,7 @@ const buildRatesAndRatiosFromAggregates = (
       [`average_realisasi_bunga_r${monthEnd}`]: roundTwo(averageRealisasiBunga),
       [`average_saldo_akhir_r${monthEnd}`]: roundTwo(averageSaldoAkhir),
       rasio_realisasi_bunga_per_total_piutang: roundRatio(
-        safeDivide(realisasiBungaMonth, saldoAkhirMonth)
+        safeDivide(realisasiBungaMonth, saldoAkhirMonth) * 100
       ),
     });
   }
@@ -859,7 +861,7 @@ const buildRatesAndRatiosFromAggregates = (
     return {
       ...item,
       rasio_markup_per_jumlah_pendapatan: roundRatio(
-        safeDivide(markupBulanIni, jumlahPendapatanBulanIni)
+        safeDivide(markupBulanIni, jumlahPendapatanBulanIni) * 100
       ),
     };
   });
@@ -885,7 +887,7 @@ const buildRatesAndRatiosFromAggregates = (
     return {
       ...item,
       rasio_pendapatan_bunga_per_jumlah_pendapatan: roundRatio(
-        safeDivide(realisasiBungaBulanIni, jumlahPendapatanBulanIni)
+        safeDivide(realisasiBungaBulanIni, jumlahPendapatanBulanIni) * 100
       ),
     };
   });
@@ -927,7 +929,7 @@ const buildRatesAndRatiosFromAggregates = (
       [`average_denda_r${monthEnd}`]: roundTwo(averageDenda),
       [`average_administrasi_r${monthEnd}`]: roundTwo(averageAdministrasi),
       rasio_pendapatan_lainnya_per_jumlah_pendapatan: roundRatio(
-        safeDivide(pendapatanLainMonth, jumlahPendapatanMonth)
+        safeDivide(pendapatanLainMonth, jumlahPendapatanMonth) * 100
       ),
     });
   }
@@ -953,7 +955,7 @@ const buildRatesAndRatiosFromAggregates = (
     return {
       ...item,
       rasio_gaji_per_pendapatan: roundRatio(
-        safeDivide(gajiBulanIni, jumlahPendapatanBulanIni)
+        safeDivide(gajiBulanIni, jumlahPendapatanBulanIni) * 100
       ),
     };
   });
@@ -979,7 +981,7 @@ const buildRatesAndRatiosFromAggregates = (
     return {
       ...item,
       rasio_operasional_per_pendapatan: roundRatio(
-        safeDivide(operasionalBulanIni, jumlahPendapatanBulanIni)
+        safeDivide(operasionalBulanIni, jumlahPendapatanBulanIni) * 100
       ),
     };
   });
@@ -1005,7 +1007,7 @@ const buildRatesAndRatiosFromAggregates = (
     return {
       ...item,
       rasio_penyusutan_per_pendapatan: roundRatio(
-        safeDivide(penyusutanBulanIni, jumlahPendapatanBulanIni)
+        safeDivide(penyusutanBulanIni, jumlahPendapatanBulanIni) * 100
       ),
     };
   });
@@ -1031,7 +1033,7 @@ const buildRatesAndRatiosFromAggregates = (
     return {
       ...item,
       rasio_cadangan_per_pendapatan: roundRatio(
-        safeDivide(cadanganBulanIni, jumlahPendapatanBulanIni)
+        safeDivide(cadanganBulanIni, jumlahPendapatanBulanIni) * 100
       ),
     };
   });
