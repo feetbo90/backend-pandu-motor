@@ -37,6 +37,36 @@ const cumulativeTotal = (monthMap, monthEnd) => {
   return total;
 };
 
+// Helper untuk menjumlahkan kenaikan per branch per bulan:
+// kenaikan bulan N = nilai bulan N - nilai bulan N-1 untuk setiap branch,
+// lalu seluruh kenaikan branch dijumlahkan pada bulan yang sama.
+const buildMonthlyIncreaseMap = (rows, valueField) => {
+  const byBranch = new Map();
+
+  rows.forEach((row) => {
+    const branchId = Number(row.branch_id);
+    const month = Number(row.month);
+    if (!Number.isInteger(branchId) || !Number.isInteger(month)) return;
+
+    if (!byBranch.has(branchId)) {
+      byBranch.set(branchId, new Map());
+    }
+
+    byBranch.get(branchId).set(month, toNumber(row[valueField]));
+  });
+
+  const increaseMap = new Map();
+  byBranch.forEach((monthMap) => {
+    for (const [month, currentValue] of monthMap.entries()) {
+      const previousValue = toNumber(monthMap.get(month - 1) || 0);
+      const currentIncrease = currentValue - previousValue;
+      increaseMap.set(month, toNumber(increaseMap.get(month) || 0) + currentIncrease);
+    }
+  });
+
+  return increaseMap;
+};
+
 // Helper untuk pembagian aman agar tidak kena divide-by-zero.
 const safeDivide = (numerator, denominator) =>
   denominator > 0 ? numerator / denominator : 0;
@@ -387,10 +417,11 @@ module.exports = {
       const sirkulasiPiutangRows = await SirkulasiPiutang.findAll({
         where: baseWhere,
         attributes: [
+          "branch_id",
           "month",
           [Sequelize.fn("SUM", Sequelize.col("macet_lama")), "total_macet_lama"],
         ],
-        group: ["month"],
+        group: ["branch_id", "month"],
         order: [["month", "ASC"]],
         raw: true,
       });
@@ -441,6 +472,10 @@ module.exports = {
         "total_cadangan_stock"
       );
       const macetLamaByMonth = buildMonthMap(
+        sirkulasiPiutangRows,
+        "total_macet_lama"
+      );
+      const kenaikanMacetLamaByMonth = buildMonthlyIncreaseMap(
         sirkulasiPiutangRows,
         "total_macet_lama"
       );
@@ -662,6 +697,9 @@ module.exports = {
         );
         const tambahanBulanIni = roundTwo(pembiayaanByMonth.get(monthEnd) || 0);
         const macetLamaBulanIni = roundTwo(macetLamaByMonth.get(monthEnd) || 0);
+        const kenaikanMacetLama = roundTwo(
+          kenaikanMacetLamaByMonth.get(monthEnd) || 0
+        );
         const stockKreditBulanIni = roundTwo(kreditByMonth.get(monthEnd) || 0);
         const leasingBulanIni = roundTwo(leasingByMonth.get(monthEnd) || 0);
 
@@ -672,6 +710,7 @@ module.exports = {
           cadangan_piutang_bulan_ini: cadanganPiutangBulanIni,
           tambahan_bulan_ini: tambahanBulanIni,
           macet_lama_bulan_ini: macetLamaBulanIni,
+          kenaikan_macet_lama: kenaikanMacetLama,
           stock_kredit_bulan_ini: stockKreditBulanIni,
           leasing_bulan_ini: leasingBulanIni,
           total_cadangan_piutang: totalCadanganPiutang,

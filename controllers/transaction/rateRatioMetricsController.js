@@ -43,6 +43,57 @@ const cumulativeTotal = (monthMap, monthEnd) => {
   return total;
 };
 
+const buildMonthlyIncreaseMap = (
+  rows,
+  fieldName,
+  branchIdFilter,
+  allowedBranchIds
+) => {
+  const byBranch = new Map();
+  const allowedBranchIdSet = Array.isArray(allowedBranchIds)
+    ? new Set(
+        allowedBranchIds
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id))
+      )
+    : null;
+
+  rows.forEach((row) => {
+    if (
+      branchIdFilter !== undefined &&
+      Number(row.branch_id) !== Number(branchIdFilter)
+    ) {
+      return;
+    }
+
+    const branchId = Number(row.branch_id);
+    const month = Number(row.month);
+    if (!Number.isInteger(branchId) || !Number.isInteger(month)) {
+      return;
+    }
+    if (allowedBranchIdSet && !allowedBranchIdSet.has(branchId)) {
+      return;
+    }
+
+    if (!byBranch.has(branchId)) {
+      byBranch.set(branchId, new Map());
+    }
+
+    byBranch.get(branchId).set(month, toNumber(row[fieldName]));
+  });
+
+  const increaseMap = new Map();
+  byBranch.forEach((monthMap) => {
+    for (const [month, currentValue] of monthMap.entries()) {
+      const previousValue = toNumber(monthMap.get(month - 1) || 0);
+      const currentIncrease = currentValue - previousValue;
+      increaseMap.set(month, toNumber(increaseMap.get(month) || 0) + currentIncrease);
+    }
+  });
+
+  return increaseMap;
+};
+
 const buildAverageRateSeries = (
   selectedMonth,
   numeratorMap,
@@ -268,11 +319,11 @@ const fetchRatesAndRatiosAggregates = async (
     SirkulasiPiutang.findAll({
       where: baseWhere,
       attributes: [
-        ...dimensionAttrs,
+        ...(groupByBranch ? ["branch_id", "month"] : ["branch_id", "month"]),
         [Sequelize.fn("SUM", Sequelize.col("macet_lama")), "total_macet_lama"],
         [Sequelize.fn("SUM", Sequelize.col("total")), "total_saldo_akhir"],
       ],
-      group: dimensionGroup,
+      group: ["branch_id", "month"],
       order: [["month", "ASC"]],
       raw: true,
     }),
@@ -304,7 +355,8 @@ const buildRatesAndRatiosFromAggregates = (
   aggregates,
   selectedMonth,
   unitCount,
-  branchIdFilter
+  branchIdFilter,
+  increaseBranchIds
 ) => {
   const {
     piutangRows,
@@ -401,6 +453,12 @@ const buildRatesAndRatiosFromAggregates = (
     sirkulasiRows,
     "total_macet_lama",
     branchIdFilter
+  );
+  const kenaikanMacetLamaByMonth = buildMonthlyIncreaseMap(
+    sirkulasiRows,
+    "total_macet_lama",
+    branchIdFilter,
+    increaseBranchIds
   );
   const kumulatifByMonth = buildMonthMap(
     labaRugiRows,
@@ -752,7 +810,10 @@ const buildRatesAndRatiosFromAggregates = (
     const tambahanMonth = toNumber(pembiayaanByMonth.get(monthEnd) || 0);
     const macetLamaCurrent = toNumber(macetLamaByMonth.get(monthEnd) || 0);
     const macetLamaPrevious = toNumber(macetLamaByMonth.get(monthEnd - 1) || 0);
-    const kenaikanMacetLama = macetLamaCurrent - macetLamaPrevious;
+    const kenaikanMacetLama =
+      branchIdFilter !== undefined
+        ? macetLamaCurrent - macetLamaPrevious
+        : toNumber(kenaikanMacetLamaByMonth.get(monthEnd) || 0);
     const stockKreditMonth = toNumber(kreditByMonth.get(monthEnd) || 0);
     const leasingMonth = toNumber(leasingByMonth.get(monthEnd) || 0);
 
@@ -773,6 +834,7 @@ const buildRatesAndRatiosFromAggregates = (
       cadangan_piutang_bulan_ini: roundTwo(cadanganPiutangMonth),
       tambahan_bulan_ini: roundTwo(tambahanMonth),
       macet_lama_bulan_ini: roundTwo(macetLamaCurrent),
+      kenaikan_macet_lama: roundTwo(kenaikanMacetLama),
       stock_kredit_bulan_ini: roundTwo(stockKreditMonth),
       leasing_bulan_ini: roundTwo(leasingMonth),
       total_cadangan_piutang: roundTwo(cadanganPiutangTotal),
@@ -1064,13 +1126,25 @@ const buildRatesAndRatiosFromAggregates = (
   };
 };
 
-const buildRatesAndRatios = async (branchIds, yearInt, selectedMonth, unitCount) => {
+const buildRatesAndRatios = async (
+  branchIds,
+  yearInt,
+  selectedMonth,
+  unitCount,
+  increaseBranchIds
+) => {
   const aggregates = await fetchRatesAndRatiosAggregates(
     branchIds,
     yearInt,
     selectedMonth
   );
-  return buildRatesAndRatiosFromAggregates(aggregates, selectedMonth, unitCount);
+  return buildRatesAndRatiosFromAggregates(
+    aggregates,
+    selectedMonth,
+    unitCount,
+    undefined,
+    increaseBranchIds
+  );
 };
 
 const handleGetRatesRatios = async (req, res) => {
@@ -1116,12 +1190,16 @@ const handleGetRatesRatios = async (req, res) => {
       .map((item) => Number(item?.id))
       .filter((id) => Number.isInteger(id));
     const unitEntities = descendants.filter((item) => item?.type === "UNIT");
+    const unitIds = unitEntities
+      .map((item) => Number(item?.id))
+      .filter((id) => Number.isInteger(id));
 
     const metrics = await buildRatesAndRatios(
       branchIds,
       yearInt,
       selectedMonth,
-      unitEntities.length
+      unitEntities.length,
+      unitIds
     );
 
     const response = {
@@ -1139,9 +1217,6 @@ const handleGetRatesRatios = async (req, res) => {
     };
 
     if (!isRootUnit) {
-      const unitIds = unitEntities
-        .map((item) => Number(item?.id))
-        .filter((id) => Number.isInteger(id));
       const unitAggregates = unitIds.length
         ? await fetchRatesAndRatiosAggregates(unitIds, yearInt, selectedMonth, true)
         : null;
@@ -1154,7 +1229,8 @@ const handleGetRatesRatios = async (req, res) => {
           unitAggregates,
           selectedMonth,
           1,
-          unitId
+          unitId,
+          [unitId]
         );
 
         units.push({
