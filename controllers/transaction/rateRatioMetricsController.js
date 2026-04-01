@@ -35,6 +35,26 @@ const buildMonthMap = (rows, fieldName, branchIdFilter) => {
   return map;
 };
 
+const buildMonthMapForYear = (rows, fieldName, yearFilter, branchIdFilter) => {
+  const map = new Map();
+  rows.forEach((row) => {
+    if (Number(row.year) !== Number(yearFilter)) {
+      return;
+    }
+    if (
+      branchIdFilter !== undefined &&
+      Number(row.branch_id) !== Number(branchIdFilter)
+    ) {
+      return;
+    }
+
+    const month = Number(row.month);
+    const currentValue = toNumber(map.get(month) || 0);
+    map.set(month, currentValue + toNumber(row[fieldName]));
+  });
+  return map;
+};
+
 const cumulativeTotal = (monthMap, monthEnd) => {
   let total = 0;
   for (let month = 1; month <= monthEnd; month += 1) {
@@ -46,6 +66,7 @@ const cumulativeTotal = (monthMap, monthEnd) => {
 const buildMonthlyIncreaseMap = (
   rows,
   fieldName,
+  yearFilter,
   branchIdFilter,
   allowedBranchIds
 ) => {
@@ -59,19 +80,25 @@ const buildMonthlyIncreaseMap = (
     : null;
 
   rows.forEach((row) => {
+    const branchId = Number(row.branch_id);
+    const year = Number(row.year);
+    const month = Number(row.month);
+    if (!Number.isInteger(branchId) || !Number.isInteger(year) || !Number.isInteger(month)) {
+      return;
+    }
     if (
       branchIdFilter !== undefined &&
       Number(row.branch_id) !== Number(branchIdFilter)
     ) {
       return;
     }
-
-    const branchId = Number(row.branch_id);
-    const month = Number(row.month);
-    if (!Number.isInteger(branchId) || !Number.isInteger(month)) {
+    if (allowedBranchIdSet && !allowedBranchIdSet.has(branchId)) {
       return;
     }
-    if (allowedBranchIdSet && !allowedBranchIdSet.has(branchId)) {
+    if (
+      year !== Number(yearFilter) &&
+      !(year === Number(yearFilter) - 1 && month === 12)
+    ) {
       return;
     }
 
@@ -79,13 +106,20 @@ const buildMonthlyIncreaseMap = (
       byBranch.set(branchId, new Map());
     }
 
-    byBranch.get(branchId).set(month, toNumber(row[fieldName]));
+    byBranch.get(branchId).set(`${year}-${month}`, toNumber(row[fieldName]));
   });
 
   const increaseMap = new Map();
   byBranch.forEach((monthMap) => {
-    for (const [month, currentValue] of monthMap.entries()) {
-      const previousValue = toNumber(monthMap.get(month - 1) || 0);
+    for (let month = 1; month <= 12; month += 1) {
+      if (month !== 1 && !monthMap.has(`${yearFilter}-${month}`)) {
+        continue;
+      }
+      const currentValue = toNumber(monthMap.get(`${yearFilter}-${month}`) || 0);
+      const previousValue =
+        month === 1
+          ? toNumber(monthMap.get(`${Number(yearFilter) - 1}-12`) || 0)
+          : toNumber(monthMap.get(`${yearFilter}-${month - 1}`) || 0);
       const currentIncrease = currentValue - previousValue;
       increaseMap.set(month, toNumber(increaseMap.get(month) || 0) + currentIncrease);
     }
@@ -220,6 +254,14 @@ const fetchRatesAndRatiosAggregates = async (
     month: { [Op.between]: [1, selectedMonth] },
     is_active: true,
   };
+  const sirkulasiWhere = {
+    branch_id: branchIds,
+    is_active: true,
+    [Op.or]: [
+      { year: yearInt, month: { [Op.between]: [1, selectedMonth] } },
+      { year: yearInt - 1, month: 12 },
+    ],
+  };
 
   const dimensionAttrs = groupByBranch ? ["branch_id", "month"] : ["month"];
   const dimensionGroup = groupByBranch ? ["branch_id", "month"] : ["month"];
@@ -317,14 +359,16 @@ const fetchRatesAndRatiosAggregates = async (
       raw: true,
     }),
     SirkulasiPiutang.findAll({
-      where: baseWhere,
+      where: sirkulasiWhere,
       attributes: [
-        ...(groupByBranch ? ["branch_id", "month"] : ["branch_id", "month"]),
+        "branch_id",
+        "year",
+        "month",
         [Sequelize.fn("SUM", Sequelize.col("macet_lama")), "total_macet_lama"],
         [Sequelize.fn("SUM", Sequelize.col("total")), "total_saldo_akhir"],
       ],
-      group: ["branch_id", "month"],
-      order: [["month", "ASC"]],
+      group: ["branch_id", "year", "month"],
+      order: [["year", "ASC"], ["month", "ASC"]],
       raw: true,
     }),
     LabaRugi.findAll({
@@ -353,6 +397,7 @@ const fetchRatesAndRatiosAggregates = async (
 
 const buildRatesAndRatiosFromAggregates = (
   aggregates,
+  yearInt,
   selectedMonth,
   unitCount,
   branchIdFilter,
@@ -449,14 +494,16 @@ const buildRatesAndRatiosFromAggregates = (
     "total_cadangan_stock",
     branchIdFilter
   );
-  const macetLamaByMonth = buildMonthMap(
+  const macetLamaByMonth = buildMonthMapForYear(
     sirkulasiRows,
     "total_macet_lama",
+    yearInt,
     branchIdFilter
   );
   const kenaikanMacetLamaByMonth = buildMonthlyIncreaseMap(
     sirkulasiRows,
     "total_macet_lama",
+    yearInt,
     branchIdFilter,
     increaseBranchIds
   );
@@ -807,13 +854,11 @@ const buildRatesAndRatiosFromAggregates = (
   const ratio_dua = [];
   for (let monthEnd = 1; monthEnd <= selectedMonth; monthEnd += 1) {
     const cadanganPiutangMonth = toNumber(cadanganPiutangByMonth.get(monthEnd) || 0);
-    const tambahanMonth = toNumber(pembiayaanByMonth.get(monthEnd) || 0);
+    const pembiayaanMonth = toNumber(pembiayaanByMonth.get(monthEnd) || 0);
     const macetLamaCurrent = toNumber(macetLamaByMonth.get(monthEnd) || 0);
-    const macetLamaPrevious = toNumber(macetLamaByMonth.get(monthEnd - 1) || 0);
-    const kenaikanMacetLama =
-      branchIdFilter !== undefined
-        ? macetLamaCurrent - macetLamaPrevious
-        : toNumber(kenaikanMacetLamaByMonth.get(monthEnd) || 0);
+    const kenaikanMacetLama = toNumber(
+      kenaikanMacetLamaByMonth.get(monthEnd) || 0
+    );
     const stockKreditMonth = toNumber(kreditByMonth.get(monthEnd) || 0);
     const leasingMonth = toNumber(leasingByMonth.get(monthEnd) || 0);
 
@@ -832,7 +877,7 @@ const buildRatesAndRatiosFromAggregates = (
     ratio_dua.push({
       month_end: monthEnd,
       cadangan_piutang_bulan_ini: roundTwo(cadanganPiutangMonth),
-      tambahan_bulan_ini: roundTwo(tambahanMonth),
+      tambahan_bulan_ini: roundTwo(pembiayaanMonth),
       macet_lama_bulan_ini: roundTwo(macetLamaCurrent),
       kenaikan_macet_lama: roundTwo(kenaikanMacetLama),
       stock_kredit_bulan_ini: roundTwo(stockKreditMonth),
@@ -848,7 +893,7 @@ const buildRatesAndRatiosFromAggregates = (
       [`average_stock_kredit_r${monthEnd}`]: roundTwo(averageStockKredit),
       [`average_leasing_r${monthEnd}`]: roundTwo(averageLeasing),
       rasio_kemacetan_pembiayaan: roundRatio(
-        safeDivide(kenaikanMacetLama, tambahanMonth) * 100
+        safeDivide(kenaikanMacetLama, pembiayaanMonth) * 100
       ),
     });
   }
@@ -1076,7 +1121,7 @@ const buildRatesAndRatiosFromAggregates = (
 
   let ratio_sebelas = buildAveragePercentSeries(
     selectedMonth,
-    cadanganTotalByMonth,
+    bebanGabunganByMonth,
     jumlahPendapatanByMonth,
     {
       numeratorMonthField: "cadangan_bulan_ini",
@@ -1140,6 +1185,7 @@ const buildRatesAndRatios = async (
   );
   return buildRatesAndRatiosFromAggregates(
     aggregates,
+    yearInt,
     selectedMonth,
     unitCount,
     undefined,
@@ -1227,6 +1273,7 @@ const handleGetRatesRatios = async (req, res) => {
 
         const unitMetrics = buildRatesAndRatiosFromAggregates(
           unitAggregates,
+          yearInt,
           selectedMonth,
           1,
           unitId,

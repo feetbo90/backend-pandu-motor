@@ -28,6 +28,20 @@ const buildMonthMap = (rows, valueField) => {
   return monthMap;
 };
 
+const buildMonthMapForYear = (rows, valueField, yearFilter) => {
+  const monthMap = new Map();
+
+  rows.forEach((row) => {
+    if (Number(row.year) !== Number(yearFilter)) return;
+
+    const month = Number(row.month);
+    if (!monthMap.has(month)) monthMap.set(month, 0);
+    monthMap.set(month, monthMap.get(month) + toNumber(row[valueField]));
+  });
+
+  return monthMap;
+};
+
 // Helper untuk jumlah kumulatif bulan 1..monthEnd.
 const cumulativeTotal = (monthMap, monthEnd) => {
   let total = 0;
@@ -40,25 +54,37 @@ const cumulativeTotal = (monthMap, monthEnd) => {
 // Helper untuk menjumlahkan kenaikan per branch per bulan:
 // kenaikan bulan N = nilai bulan N - nilai bulan N-1 untuk setiap branch,
 // lalu seluruh kenaikan branch dijumlahkan pada bulan yang sama.
-const buildMonthlyIncreaseMap = (rows, valueField) => {
+const buildMonthlyIncreaseMap = (rows, valueField, yearFilter) => {
   const byBranch = new Map();
 
   rows.forEach((row) => {
     const branchId = Number(row.branch_id);
+    const year = Number(row.year);
     const month = Number(row.month);
-    if (!Number.isInteger(branchId) || !Number.isInteger(month)) return;
+    if (!Number.isInteger(branchId) || !Number.isInteger(year) || !Number.isInteger(month)) return;
+    if (
+      year !== Number(yearFilter) &&
+      !(year === Number(yearFilter) - 1 && month === 12)
+    ) {
+      return;
+    }
 
     if (!byBranch.has(branchId)) {
       byBranch.set(branchId, new Map());
     }
 
-    byBranch.get(branchId).set(month, toNumber(row[valueField]));
+    byBranch.get(branchId).set(`${year}-${month}`, toNumber(row[valueField]));
   });
 
   const increaseMap = new Map();
   byBranch.forEach((monthMap) => {
-    for (const [month, currentValue] of monthMap.entries()) {
-      const previousValue = toNumber(monthMap.get(month - 1) || 0);
+    for (let month = 1; month <= 12; month += 1) {
+      if (month !== 1 && !monthMap.has(`${yearFilter}-${month}`)) continue;
+      const currentValue = toNumber(monthMap.get(`${yearFilter}-${month}`) || 0);
+      const previousValue =
+        month === 1
+          ? toNumber(monthMap.get(`${Number(yearFilter) - 1}-12`) || 0)
+          : toNumber(monthMap.get(`${yearFilter}-${month - 1}`) || 0);
       const currentIncrease = currentValue - previousValue;
       increaseMap.set(month, toNumber(increaseMap.get(month) || 0) + currentIncrease);
     }
@@ -294,6 +320,14 @@ module.exports = {
         month: monthFilter,
         is_active: true,
       };
+      const sirkulasiWhere = {
+        branch_id: branchIds,
+        is_active: true,
+        [Op.or]: [
+          { year: yearInt, month: monthFilter },
+          { year: yearInt - 1, month: 12 },
+        ],
+      };
 
       // Ambil total pembiayaan per bulan (Piutang.tambahan).
       const piutangRows = await Piutang.findAll({
@@ -415,14 +449,15 @@ module.exports = {
 
       // Ambil total macet lama per bulan untuk ratio 2.
       const sirkulasiPiutangRows = await SirkulasiPiutang.findAll({
-        where: baseWhere,
+        where: sirkulasiWhere,
         attributes: [
           "branch_id",
+          "year",
           "month",
           [Sequelize.fn("SUM", Sequelize.col("macet_lama")), "total_macet_lama"],
         ],
-        group: ["branch_id", "month"],
-        order: [["month", "ASC"]],
+        group: ["branch_id", "year", "month"],
+        order: [["year", "ASC"], ["month", "ASC"]],
         raw: true,
       });
 
@@ -471,13 +506,15 @@ module.exports = {
         bebanRows,
         "total_cadangan_stock"
       );
-      const macetLamaByMonth = buildMonthMap(
+      const macetLamaByMonth = buildMonthMapForYear(
         sirkulasiPiutangRows,
-        "total_macet_lama"
+        "total_macet_lama",
+        yearInt
       );
       const kenaikanMacetLamaByMonth = buildMonthlyIncreaseMap(
         sirkulasiPiutangRows,
-        "total_macet_lama"
+        "total_macet_lama",
+        yearInt
       );
       const kumulatifByMonth = buildMonthMap(labaRugiRows, "total_kumulatif");
 
