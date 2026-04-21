@@ -15,7 +15,7 @@ module.exports = {
       }
 
       const existing = await SumberDaya.findOne({
-        where: { branch_id, year, month, is_active: true }
+        where: { branch_id, year, month }
       });
 
       if (existing) {
