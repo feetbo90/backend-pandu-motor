@@ -5,7 +5,10 @@ module.exports = {
   // POST /api/sumber-daya
   async create(req, res) {
     try {
-      const { branch_id, year, month, ...rest } = req.body;
+      const { branch_id, year, month, jumlah_unit, ...rest } = req.body;
+      const jumlahUnitPayload = Object.prototype.hasOwnProperty.call(req.body, "jumlah_unit")
+        ? { jumlah_unit }
+        : {};
 
       if (!branch_id) {
         return res.status(400).json({ message: "branch_id wajib diisi" });
@@ -24,6 +27,7 @@ module.exports = {
         } else {
           await existing.update({
             ...req.body,
+            ...jumlahUnitPayload,
             is_active: true,
             updated_at: new Date(),
             version: existing.version + 1,
@@ -43,6 +47,7 @@ module.exports = {
         year,
         month,
         ...rest,
+        ...jumlahUnitPayload,
         created_at: new Date(),
         updated_at: new Date(),
         version: 1,
@@ -128,7 +133,10 @@ module.exports = {
   async update(req, res) {
     try {
       const id = req.params.id;
-      const { branch_id, year, month, ...rest } = req.body;
+      const { branch_id, year, month, jumlah_unit, ...rest } = req.body;
+      const jumlahUnitPayload = Object.prototype.hasOwnProperty.call(req.body, "jumlah_unit")
+        ? { jumlah_unit }
+        : {};
 
       const sumberDaya = await SumberDaya.findByPk(id);
       if (!sumberDaya) {
@@ -140,6 +148,7 @@ module.exports = {
         year: year || sumberDaya.year,
         month: month || sumberDaya.month,
         ...rest,
+        ...jumlahUnitPayload,
         updated_at: new Date(),
         change_id: uuidv4(),
         version: Number(sumberDaya.version) + 1

@@ -27,6 +27,9 @@ const authMiddleware = require("../middlewares/authMiddleware");
  *                 type: integer
  *               jumlah_karyawan:
  *                 type: integer
+ *               jumlah_unit:
+ *                 type: integer
+ *                 nullable: true
  *               formasi_tenaga:
  *                 type: string
  *               pimpinan:
@@ -124,6 +127,9 @@ const authMiddleware = require("../middlewares/authMiddleware");
  *                 type: integer
  *               jumlah_karyawan:
  *                 type: integer
+ *               jumlah_unit:
+ *                 type: integer
+ *                 nullable: true
  *               formasi_tenaga:
  *                 type: string
  *               pimpinan:

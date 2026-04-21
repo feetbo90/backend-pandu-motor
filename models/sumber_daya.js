@@ -26,6 +26,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true
       },
       jumlah_karyawan: { type: DataTypes.INTEGER, defaultValue: 0 },
+      jumlah_unit: { type: DataTypes.INTEGER, allowNull: true },
       formasi_tenaga: { type: DataTypes.STRING, allowNull: true },
       pimpinan: { type: DataTypes.INTEGER, defaultValue: 0 },
       kasir: { type: DataTypes.INTEGER, defaultValue: 0 },

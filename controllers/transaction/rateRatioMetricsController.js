@@ -172,7 +172,7 @@ const buildAverageRateSeries = (
   return result;
 };
 
-const buildUnitCountRateSeries = (selectedMonth, valueMap, unitCount, config) => {
+const buildUnitRateSeries = (selectedMonth, valueMap, unitMap, config) => {
   const {
     monthField,
     totalField,
@@ -187,15 +187,17 @@ const buildUnitCountRateSeries = (selectedMonth, valueMap, unitCount, config) =>
     const monthValue = toNumber(valueMap.get(monthEnd) || 0);
     const totalValue = cumulativeTotal(valueMap, monthEnd);
     const averageValue = totalValue / monthEnd;
+    const totalUnit = cumulativeTotal(unitMap, monthEnd);
+    const averageUnit = totalUnit / monthEnd;
 
     result.push({
       month_end: monthEnd,
       [monthField]: roundTwo(monthValue),
       [totalField]: roundTwo(totalValue),
       [`${averageBase}_r${monthEnd}`]: roundTwo(averageValue),
-      [`${averageUnitBase}_r${monthEnd}`]: roundTwo(unitCount),
-      [unitField]: unitCount,
-      [ratioField]: roundTwo(safeDivide(averageValue, unitCount)),
+      [`${averageUnitBase}_r${monthEnd}`]: roundTwo(averageUnit),
+      [unitField]: roundTwo(totalUnit),
+      [ratioField]: roundTwo(safeDivide(averageValue, averageUnit)),
     });
   }
 
@@ -314,6 +316,7 @@ const fetchRatesAndRatiosAggregates = async (
       attributes: [
         ...dimensionAttrs,
         [Sequelize.fn("SUM", Sequelize.col("jumlah_karyawan")), "total_karyawan"],
+        [Sequelize.fn("SUM", Sequelize.col("jumlah_unit")), "total_satuan_kerja"],
       ],
       group: dimensionGroup,
       order: [["month", "ASC"]],
@@ -399,7 +402,6 @@ const buildRatesAndRatiosFromAggregates = (
   aggregates,
   yearInt,
   selectedMonth,
-  unitCount,
   branchIdFilter,
   increaseBranchIds
 ) => {
@@ -444,6 +446,11 @@ const buildRatesAndRatiosFromAggregates = (
   const karyawanByMonth = buildMonthMap(
     sumberDayaRows,
     "total_karyawan",
+    branchIdFilter
+  );
+  const satuanKerjaByMonth = buildMonthMap(
+    sumberDayaRows,
+    "total_satuan_kerja",
     branchIdFilter
   );
   const markupByMonth = buildMonthMap(pendapatanRows, "total_markup", branchIdFilter);
@@ -755,10 +762,10 @@ const buildRatesAndRatiosFromAggregates = (
     };
   });
 
-  const rate_delapan = buildUnitCountRateSeries(
+  const rate_delapan = buildUnitRateSeries(
     selectedMonth,
     penyusutanByMonth,
-    unitCount,
+    satuanKerjaByMonth,
     {
       monthField: "penyusutan_bulan_ini",
       totalField: "total_penyusutan",
@@ -769,10 +776,10 @@ const buildRatesAndRatiosFromAggregates = (
     }
   );
 
-  const rate_sembilan = buildUnitCountRateSeries(
+  const rate_sembilan = buildUnitRateSeries(
     selectedMonth,
     bebanGabunganByMonth,
-    unitCount,
+    satuanKerjaByMonth,
     {
       monthField: "beban_gabungan_bulan_ini",
       totalField: "total_beban_gabungan",
@@ -783,10 +790,10 @@ const buildRatesAndRatiosFromAggregates = (
     }
   );
 
-  const rate_sepuluh = buildUnitCountRateSeries(
+  const rate_sepuluh = buildUnitRateSeries(
     selectedMonth,
     kumulatifByMonth,
-    unitCount,
+    satuanKerjaByMonth,
     {
       monthField: "kumulatif_bulan_ini",
       totalField: "total_kumulatif",
@@ -1175,7 +1182,6 @@ const buildRatesAndRatios = async (
   branchIds,
   yearInt,
   selectedMonth,
-  unitCount,
   increaseBranchIds
 ) => {
   const aggregates = await fetchRatesAndRatiosAggregates(
@@ -1187,7 +1193,6 @@ const buildRatesAndRatios = async (
     aggregates,
     yearInt,
     selectedMonth,
-    unitCount,
     undefined,
     increaseBranchIds
   );
@@ -1244,7 +1249,6 @@ const handleGetRatesRatios = async (req, res) => {
       branchIds,
       yearInt,
       selectedMonth,
-      unitEntities.length,
       unitIds
     );
 
@@ -1275,7 +1279,6 @@ const handleGetRatesRatios = async (req, res) => {
           unitAggregates,
           yearInt,
           selectedMonth,
-          1,
           unitId,
           [unitId]
         );
