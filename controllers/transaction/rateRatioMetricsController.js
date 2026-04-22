@@ -187,12 +187,9 @@ const buildUnitRateSeries = (selectedMonth, valueMap, unitMap, config) => {
     const monthValue = toNumber(valueMap.get(monthEnd) || 0);
     const totalValue = cumulativeTotal(valueMap, monthEnd);
     const averageValue = totalValue / monthEnd;
+    const unitValue = toNumber(unitMap.get(monthEnd) || 0);
     const totalUnit = cumulativeTotal(unitMap, monthEnd);
-    let cumulativeUnitTotal = 0;
-    for (let month = 1; month <= monthEnd; month += 1) {
-      cumulativeUnitTotal += cumulativeTotal(unitMap, month);
-    }
-    const averageUnit = cumulativeUnitTotal / monthEnd;
+    const averageUnit = totalUnit / monthEnd;
 
     result.push({
       month_end: monthEnd,
@@ -200,7 +197,7 @@ const buildUnitRateSeries = (selectedMonth, valueMap, unitMap, config) => {
       [totalField]: roundTwo(totalValue),
       [`${averageBase}_r${monthEnd}`]: roundTwo(averageValue),
       [`${averageUnitBase}_r${monthEnd}`]: roundTwo(averageUnit),
-      [unitField]: roundTwo(totalUnit),
+      [unitField]: roundTwo(unitValue),
       [ratioField]: roundTwo(safeDivide(averageValue, averageUnit)),
     });
   }
