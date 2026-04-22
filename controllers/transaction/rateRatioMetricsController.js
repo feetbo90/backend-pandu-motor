@@ -188,7 +188,11 @@ const buildUnitRateSeries = (selectedMonth, valueMap, unitMap, config) => {
     const totalValue = cumulativeTotal(valueMap, monthEnd);
     const averageValue = totalValue / monthEnd;
     const totalUnit = cumulativeTotal(unitMap, monthEnd);
-    const averageUnit = totalUnit / monthEnd;
+    let cumulativeUnitTotal = 0;
+    for (let month = 1; month <= monthEnd; month += 1) {
+      cumulativeUnitTotal += cumulativeTotal(unitMap, month);
+    }
+    const averageUnit = cumulativeUnitTotal / monthEnd;
 
     result.push({
       month_end: monthEnd,
