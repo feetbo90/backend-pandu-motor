@@ -23,7 +23,7 @@ const authMiddleware = require("../middlewares/authMiddleware");
  *                 type: integer
  *               ...rest:
  *                 type: object
- *                 description: Field lain sesuai kebutuhan sirkulasi stock
+ *                 description: Field sirkulasi stock seperti unit_awal, unit_awal_data, pembelian_tambahan, pembelian_tambahan_data, mutasi_masuk, mutasi_masuk_data, mutasi_keluar, mutasi_keluar_data, terjual, terjual_data, unit_akhir, unit_akhir_data
  *             required:
  *               - branch_id
  *               - period_id

@@ -1,18 +1,42 @@
 const { SirkulasiStock, Period } = require("../../models");
 const { v4: uuidv4 } = require("uuid");
 
+const sirkulasiStockFields = [
+  "unit_awal",
+  "unit_awal_data",
+  "pembelian_tambahan",
+  "pembelian_tambahan_data",
+  "mutasi_masuk",
+  "mutasi_masuk_data",
+  "mutasi_keluar",
+  "mutasi_keluar_data",
+  "terjual",
+  "terjual_data",
+  "unit_akhir",
+  "unit_akhir_data"
+];
+
+const pickSirkulasiStockPayload = (body) =>
+  sirkulasiStockFields.reduce((payload, field) => {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      payload[field] = body[field];
+    }
+    return payload;
+  }, {});
+
 module.exports = {
   // POST /api/sirkulasi-stock
   async create(req, res) {
     try {
-      const { branch_id, month, year,...rest } = req.body;
+      const { branch_id, month, year, period_id } = req.body;
+      const payload = pickSirkulasiStockPayload(req.body);
 
       if (!branch_id) {
         return res.status(400).json({ message: "branch_id wajib diisi" });
       }
 
       const existing = await SirkulasiStock.findOne({
-        where: { branch_id, year, month, is_active: true }
+        where: { branch_id, year, month }
       });
 
       if (existing) {
@@ -23,7 +47,9 @@ module.exports = {
           });
         } else {
           await existing.update({
-            ...req.body,
+            branch_id,
+            period_id: period_id || existing.period_id || 1,
+            ...payload,
             is_active: true,
             updated_at: new Date(),
             month,
@@ -41,8 +67,8 @@ module.exports = {
 
       const data = await SirkulasiStock.create({
         branch_id,
-        period_id: 1,
-        ...rest,
+        period_id: period_id || 1,
+        ...payload,
         created_at: new Date(),
         updated_at: new Date(),
         change_id: uuidv4(),
@@ -166,7 +192,8 @@ module.exports = {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const { branch_id, year, month, ...rest } = req.body;
+      const { branch_id, year, month, period_id } = req.body;
+      const payload = pickSirkulasiStockPayload(req.body);
 
       if (!branch_id) {
         return res.status(400).json({ message: "branch_id wajib diisi" });
@@ -177,10 +204,10 @@ module.exports = {
 
       await data.update({
         branch_id,
-        period_id: 1,
+        period_id: period_id || data.period_id || 1,
         year,
         month,
-        ...rest,
+        ...payload,
         change_id: uuidv4(),
         updated_at: new Date(),
         version: Number(data.version) + 1

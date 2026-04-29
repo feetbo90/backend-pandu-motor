@@ -57,7 +57,8 @@ const modelConfig = {
     columns: [
       "branch_id", "period_id", "year", "month",
       "unit_awal", "unit_awal_data", "pembelian_tambahan", "pembelian_tambahan_data",
-      "mutasi_masuk", "mutasi_keluar", "terjual", "terjual_data", "unit_akhir", "unit_akhir_data",
+      "mutasi_masuk", "mutasi_masuk_data", "mutasi_keluar", "mutasi_keluar_data",
+      "terjual", "terjual_data", "unit_akhir", "unit_akhir_data",
       "version", "is_active", "change_id"
     ]
   },
