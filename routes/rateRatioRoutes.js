@@ -5,6 +5,7 @@ const rateRatioRangeController = require("../controllers/transaction/rateRatioRa
 const newRateRangeController = require("../controllers/transaction/newRateRangeController");
 const newRateMonthlyController = require("../controllers/transaction/newRateMonthlyController");
 const rateRatioMetricsController = require("../controllers/transaction/rateRatioMetricsController");
+const rateRatioMetricsCenterController = require("../controllers/transaction/rateRatioMetricsCenterController");
 const authMiddleware = require("../middlewares/authMiddleware");
 
 router.get("/rate", authMiddleware, rateRatioController.getRate);
@@ -33,6 +34,11 @@ router.get(
   "/:entity_id/descendants/rates-ratios",
   authMiddleware,
   rateRatioMetricsController.getRatesRatios
+);
+router.get(
+  "/center/rates-ratios",
+  authMiddleware,
+  rateRatioMetricsCenterController.getRatesRatiosCenter
 );
 router.get("/:entity_id/ratio/descendants", authMiddleware, rateRatioController.getRatioDescendants);
 

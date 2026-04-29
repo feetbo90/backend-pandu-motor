@@ -1312,4 +1312,7 @@ module.exports = {
   async getPembiayaanUnitPenjualan(req, res) {
     return handleGetRatesRatios(req, res);
   },
+  fetchRatesAndRatiosAggregates,
+  buildRatesAndRatiosFromAggregates,
+  buildRatesAndRatios,
 };
