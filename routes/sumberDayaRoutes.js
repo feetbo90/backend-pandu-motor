@@ -38,6 +38,10 @@ const authMiddleware = require("../middlewares/authMiddleware");
  *                 type: integer
  *               administrasi:
  *                 type: integer
+ *               mekanik:
+ *                 type: string
+ *                 maxLength: 50
+ *                 nullable: true
  *               pdl:
  *                 type: integer
  *               kontrak_kantor:
@@ -138,6 +142,10 @@ const authMiddleware = require("../middlewares/authMiddleware");
  *                 type: integer
  *               administrasi:
  *                 type: integer
+ *               mekanik:
+ *                 type: string
+ *                 maxLength: 50
+ *                 nullable: true
  *               pdl:
  *                 type: integer
  *               kontrak_kantor:

@@ -1,6 +1,9 @@
 const { SumberDaya, Period } = require("../../models");
 const { v4: uuidv4 } = require("uuid");
 
+const isMekanikInvalid = (mekanik) =>
+  mekanik !== undefined && mekanik !== null && String(mekanik).length > 50;
+
 module.exports = {
   // POST /api/sumber-daya
   async create(req, res) {
@@ -12,6 +15,10 @@ module.exports = {
 
       if (!branch_id) {
         return res.status(400).json({ message: "branch_id wajib diisi" });
+      }
+
+      if (isMekanikInvalid(req.body.mekanik)) {
+        return res.status(400).json({ message: "mekanik maksimal 50 karakter" });
       }
 
       const existing = await SumberDaya.findOne({
@@ -141,6 +148,10 @@ module.exports = {
       const sumberDaya = await SumberDaya.findByPk(id);
       if (!sumberDaya) {
         return res.status(404).json({ message: "Data sumber daya tidak ditemukan" });
+      }
+
+      if (isMekanikInvalid(req.body.mekanik)) {
+        return res.status(400).json({ message: "mekanik maksimal 50 karakter" });
       }
 
       await sumberDaya.update({

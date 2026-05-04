@@ -87,7 +87,7 @@ const modelConfig = {
     conflict: ["branch_id", "year", "month"],
     columns: [
       "branch_id", "period_id", "year", "month",
-      "jumlah_karyawan", "formasi_tenaga", "pimpinan", "kasir", "administrasi", "pdl", "kontrak_kantor", "inventaris_mobil",
+      "jumlah_karyawan", "formasi_tenaga", "pimpinan", "kasir", "administrasi", "mekanik", "pdl", "kontrak_kantor", "inventaris_mobil",
       "inventaris_mobil_ket", "sisa_inventaris_pendirian", "penyusutan_bulan",
       "version", "is_active", "change_id"
     ]
