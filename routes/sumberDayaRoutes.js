@@ -106,6 +106,28 @@ const authMiddleware = require("../middlewares/authMiddleware");
 /**
  * @swagger
  * /sumber-daya/{id}:
+ *   get:
+ *     summary: Get sumber daya by ID
+ *     tags:
+ *       - SumberDaya
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Data sumber daya berhasil diambil
+ *       404:
+ *         description: Data sumber daya tidak ditemukan
+ *       500:
+ *         description: Server error
+ */
+
+/**
+ * @swagger
+ * /sumber-daya/{id}:
  *   put:
  *     summary: Update sumber daya by ID
  *     tags:
@@ -168,6 +190,7 @@ const authMiddleware = require("../middlewares/authMiddleware");
  */
 router.post("/", authMiddleware, controller.create);
 router.get("/", authMiddleware, controller.getAll);
+router.get("/:id", authMiddleware, controller.getById);
 router.put('/:id', authMiddleware, controller.update);
 router.delete("/:id", authMiddleware, controller.remove);
 
