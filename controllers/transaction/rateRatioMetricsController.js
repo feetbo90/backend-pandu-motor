@@ -35,6 +35,27 @@ const buildMonthMap = (rows, fieldName, branchIdFilter) => {
   return map;
 };
 
+const buildMonthMapForBranches = (rows, fieldName, branchIds) => {
+  const branchIdSet = new Set(
+    (Array.isArray(branchIds) ? branchIds : [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id))
+  );
+  const map = new Map();
+
+  rows.forEach((row) => {
+    if (!branchIdSet.has(Number(row.branch_id))) {
+      return;
+    }
+
+    const month = Number(row.month);
+    const currentValue = toNumber(map.get(month) || 0);
+    map.set(month, currentValue + toNumber(row[fieldName]));
+  });
+
+  return map;
+};
+
 const buildMonthMapForYear = (rows, fieldName, yearFilter, branchIdFilter) => {
   const map = new Map();
   rows.forEach((row) => {
@@ -276,6 +297,7 @@ const fetchRatesAndRatiosAggregates = async (
     pendapatanRows,
     pendapatanLainRows,
     bebanRows,
+    bebanRowsByBranch,
     sirkulasiRows,
     labaRugiRows,
   ] = await Promise.all([
@@ -362,6 +384,18 @@ const fetchRatesAndRatiosAggregates = async (
       order: [["month", "ASC"]],
       raw: true,
     }),
+    Beban.findAll({
+      where: baseWhere,
+      attributes: [
+        "branch_id",
+        "month",
+        [Sequelize.fn("SUM", Sequelize.col("cadangan_piutang")), "total_cadangan_piutang"],
+        [Sequelize.fn("SUM", Sequelize.col("cadangan_stock")), "total_cadangan_stock"],
+      ],
+      group: ["branch_id", "month"],
+      order: [["branch_id", "ASC"], ["month", "ASC"]],
+      raw: true,
+    }),
     SirkulasiPiutang.findAll({
       where: sirkulasiWhere,
       attributes: [
@@ -394,6 +428,7 @@ const fetchRatesAndRatiosAggregates = async (
     pendapatanRows,
     pendapatanLainRows,
     bebanRows,
+    bebanRowsByBranch,
     sirkulasiRows,
     labaRugiRows,
   };
@@ -404,7 +439,8 @@ const buildRatesAndRatiosFromAggregates = (
   yearInt,
   selectedMonth,
   branchIdFilter,
-  increaseBranchIds
+  increaseBranchIds,
+  options = {}
 ) => {
   const {
     piutangRows,
@@ -413,6 +449,7 @@ const buildRatesAndRatiosFromAggregates = (
     pendapatanRows,
     pendapatanLainRows,
     bebanRows,
+    bebanRowsByBranch = [],
     sirkulasiRows,
     labaRugiRows,
   } = aggregates;
@@ -502,6 +539,37 @@ const buildRatesAndRatiosFromAggregates = (
     "total_cadangan_stock",
     branchIdFilter
   );
+  const unitIdsForBebanGabungan = (Array.isArray(increaseBranchIds)
+    ? increaseBranchIds
+    : []
+  )
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id));
+  const unitIdSetForBebanGabungan = new Set(unitIdsForBebanGabungan);
+  const isUnitBebanGabungan =
+    options.bebanGabunganScope === "unit" ||
+    (branchIdFilter !== undefined &&
+      unitIdSetForBebanGabungan.has(Number(branchIdFilter)));
+  const branchIdsWithBeban = [
+    ...new Set(
+      bebanRowsByBranch
+        .map((row) => Number(row.branch_id))
+        .filter((id) => Number.isInteger(id))
+    ),
+  ];
+  const nonUnitBranchIdsForBebanGabungan = branchIdsWithBeban.filter(
+    (id) => !unitIdSetForBebanGabungan.has(id)
+  );
+  const unitCadanganPiutangByMonth = buildMonthMapForBranches(
+    bebanRowsByBranch,
+    "total_cadangan_piutang",
+    unitIdsForBebanGabungan
+  );
+  const nonUnitCadanganStockByMonth = buildMonthMapForBranches(
+    bebanRowsByBranch,
+    "total_cadangan_stock",
+    nonUnitBranchIdsForBebanGabungan
+  );
   const macetLamaByMonth = buildMonthMapForYear(
     sirkulasiRows,
     "total_macet_lama",
@@ -522,13 +590,15 @@ const buildRatesAndRatiosFromAggregates = (
   );
 
   const bebanGabunganByMonth = new Map();
-  const cadanganTotalByMonth = new Map();
   for (let monthIdx = 1; monthIdx <= selectedMonth; monthIdx += 1) {
-    const penyusutan = penyusutanByMonth.get(monthIdx) || 0;
-    const cadPiutang = cadanganPiutangByMonth.get(monthIdx) || 0;
-    const cadStock = cadanganStockByMonth.get(monthIdx) || 0;
-    bebanGabunganByMonth.set(monthIdx, penyusutan + cadPiutang + cadStock);
-    cadanganTotalByMonth.set(monthIdx, cadPiutang + cadStock);
+    const cadPiutang = isUnitBebanGabungan
+      ? cadanganPiutangByMonth.get(monthIdx) || 0
+      : unitCadanganPiutangByMonth.get(monthIdx) || 0;
+    const cadStock = nonUnitCadanganStockByMonth.get(monthIdx) || 0;
+    bebanGabunganByMonth.set(
+      monthIdx,
+      isUnitBebanGabungan ? cadPiutang : cadPiutang + cadStock
+    );
   }
 
   let rate_satu = buildAverageRateSeries(
@@ -1183,7 +1253,8 @@ const buildRatesAndRatios = async (
   branchIds,
   yearInt,
   selectedMonth,
-  increaseBranchIds
+  increaseBranchIds,
+  options = {}
 ) => {
   const aggregates = await fetchRatesAndRatiosAggregates(
     branchIds,
@@ -1195,7 +1266,8 @@ const buildRatesAndRatios = async (
     yearInt,
     selectedMonth,
     undefined,
-    increaseBranchIds
+    increaseBranchIds,
+    options
   );
 };
 
@@ -1250,7 +1322,8 @@ const handleGetRatesRatios = async (req, res) => {
       branchIds,
       yearInt,
       selectedMonth,
-      unitIds
+      unitIds,
+      { bebanGabunganScope: isRootUnit ? "unit" : "aggregate" }
     );
 
     const response = {
@@ -1281,7 +1354,8 @@ const handleGetRatesRatios = async (req, res) => {
           yearInt,
           selectedMonth,
           unitId,
-          [unitId]
+          [unitId],
+          { bebanGabunganScope: "unit" }
         );
 
         units.push({

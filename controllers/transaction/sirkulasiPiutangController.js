@@ -5,7 +5,7 @@ module.exports = {
   // POST /api/sirkulasi-piutang
   async create(req, res) {
     try {
-      const { branch_id, total_piutang, month, year, ...rest } = req.body;
+      const { branch_id, total, total_piutang, month, year, ...rest } = req.body;
 
       if (!branch_id) {
         return res.status(400).json({ message: "branch_id wajib diisi" });
@@ -45,7 +45,7 @@ module.exports = {
         ...rest,
         created_at: new Date(),
         updated_at: new Date(),
-        total: total_piutang,
+        total: total ?? total_piutang,
         change_id: uuidv4(),
         month,
         year,

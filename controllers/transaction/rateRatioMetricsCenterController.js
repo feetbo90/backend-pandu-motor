@@ -39,6 +39,12 @@ const parseInteger = (value) => {
   return Number.isInteger(parsed) ? parsed : undefined;
 };
 
+const toNumber = (value) => parseFloat(value || 0);
+const safeDivide = (numerator, denominator) =>
+  denominator !== 0 ? numerator / denominator : 0;
+const roundTwo = (value) => Math.round(toNumber(value));
+const roundRatio = (value) => Number(toNumber(value).toFixed(2));
+
 const uniqueIntegers = (values) => [
   ...new Set(
     values
@@ -58,6 +64,82 @@ const withRateRatioGroups = (target, metrics) => ({
   rate: pickMetrics(metrics, RATE_KEYS),
   ratio: pickMetrics(metrics, RATIO_KEYS),
 });
+
+const sumCabangMetricByMonth = (cabangResults, groupKey, metricKey, fieldName) => {
+  const valuesByMonth = new Map();
+
+  cabangResults.forEach((cabang) => {
+    const items = cabang?.[groupKey]?.[metricKey] || [];
+    items.forEach((item) => {
+      const monthEnd = Number(item.month_end);
+      const currentValue = toNumber(valuesByMonth.get(monthEnd) || 0);
+      valuesByMonth.set(monthEnd, currentValue + toNumber(item[fieldName]));
+    });
+  });
+
+  return valuesByMonth;
+};
+
+const cumulativeTotal = (monthMap, monthEnd) => {
+  let total = 0;
+  for (let month = 1; month <= monthEnd; month += 1) {
+    total += toNumber(monthMap.get(month) || 0);
+  }
+  return total;
+};
+
+const applyCenterCabangSums = (metrics, cabangResults) => {
+  const bebanGabunganByMonth = sumCabangMetricByMonth(
+    cabangResults,
+    "rate",
+    "rate_sembilan",
+    "beban_gabungan_bulan_ini"
+  );
+  const cadanganByMonth = sumCabangMetricByMonth(
+    cabangResults,
+    "ratio",
+    "ratio_sebelas",
+    "cadangan_bulan_ini"
+  );
+
+  metrics.rate_sembilan = (metrics.rate_sembilan || []).map((item) => {
+    const monthEnd = Number(item.month_end);
+    const bebanGabunganBulanIni = bebanGabunganByMonth.get(monthEnd) || 0;
+    const totalBebanGabungan = cumulativeTotal(bebanGabunganByMonth, monthEnd);
+    const averageBebanGabungan = totalBebanGabungan / monthEnd;
+    const averageSatuanKerja = toNumber(item[`average_satuan_kerja_r${monthEnd}`]);
+
+    return {
+      ...item,
+      beban_gabungan_bulan_ini: roundTwo(bebanGabunganBulanIni),
+      total_beban_gabungan: roundTwo(totalBebanGabungan),
+      [`average_beban_gabungan_r${monthEnd}`]: roundTwo(averageBebanGabungan),
+      beban_gabungan_per_satuan_kerja: roundTwo(
+        safeDivide(averageBebanGabungan, averageSatuanKerja)
+      ),
+    };
+  });
+
+  metrics.ratio_sebelas = (metrics.ratio_sebelas || []).map((item) => {
+    const monthEnd = Number(item.month_end);
+    const cadanganBulanIni = cadanganByMonth.get(monthEnd) || 0;
+    const totalCadangan = cumulativeTotal(cadanganByMonth, monthEnd);
+    const averageCadangan = totalCadangan / monthEnd;
+    const jumlahPendapatanBulanIni = toNumber(item.jumlah_pendapatan_bulan_ini);
+
+    return {
+      ...item,
+      cadangan_bulan_ini: roundTwo(cadanganBulanIni),
+      total_cadangan: roundTwo(totalCadangan),
+      [`average_cadangan_r${monthEnd}`]: roundTwo(averageCadangan),
+      rasio_cadangan_per_pendapatan: roundRatio(
+        safeDivide(cadanganBulanIni, jumlahPendapatanBulanIni) * 100
+      ),
+    };
+  });
+
+  return metrics;
+};
 
 const buildCabangMetrics = async (cabang, yearInt, selectedMonth) => {
   const descendants = await getAllDescendants(cabang.id);
@@ -147,6 +229,7 @@ const handleGetRatesRatiosCenter = async (req, res) => {
       selectedMonth,
       centerUnitIds
     );
+    applyCenterCabangSums(metrics, cabangResults);
 
     const response = withRateRatioGroups(
       {
@@ -179,7 +262,8 @@ const handleGetRatesRatiosCenter = async (req, res) => {
         yearInt,
         selectedMonth,
         unitId,
-        [unitId]
+        [unitId],
+        { bebanGabunganScope: "unit" }
       );
 
       return withRateRatioGroups(
