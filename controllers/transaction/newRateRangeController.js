@@ -336,6 +336,7 @@ module.exports = {
           "month",
           [Sequelize.fn("SUM", Sequelize.col("tambahan")), "total_pembiayaan"],
           [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "total_realisasi_pokok"],
+          [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "total_realisasi_bunga"],
           [Sequelize.fn("SUM", Sequelize.col("saldo_akhir")), "total_saldo_akhir"],
         ],
         group: ["month"],
@@ -394,7 +395,6 @@ module.exports = {
         attributes: [
           "month",
           [Sequelize.fn("SUM", Sequelize.col("markup_jumlah")), "total_markup"],
-          [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "total_realisasi_bunga"],
           [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan")), "total_jumlah_pendapatan"],
           [Sequelize.fn("SUM", Sequelize.col("denda")), "total_denda"],
           [Sequelize.fn("SUM", Sequelize.col("administrasi")), "total_administrasi"],
@@ -476,7 +476,7 @@ module.exports = {
       const karyawanByMonth = buildMonthMap(sumberDayaRows, "total_karyawan");
       const markupByMonth = buildMonthMap(pendapatanRows, "total_markup");
       const realisasiBungaByMonth = buildMonthMap(
-        pendapatanRows,
+        piutangRows,
         "total_realisasi_bunga"
       );
       const jumlahPendapatanByMonth = buildMonthMap(

@@ -307,6 +307,7 @@ const fetchRatesAndRatiosAggregates = async (
         ...dimensionAttrs,
         [Sequelize.fn("SUM", Sequelize.col("tambahan")), "total_pembiayaan"],
         [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "total_realisasi_pokok"],
+        [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "total_realisasi_bunga"],
       ],
       group: dimensionGroup,
       order: [["month", "ASC"]],
@@ -350,7 +351,6 @@ const fetchRatesAndRatiosAggregates = async (
       attributes: [
         ...dimensionAttrs,
         [Sequelize.fn("SUM", Sequelize.col("markup_jumlah")), "total_markup"],
-        [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "total_realisasi_bunga"],
         [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan")), "total_jumlah_pendapatan"],
         [Sequelize.fn("SUM", Sequelize.col("denda")), "total_denda"],
         [Sequelize.fn("SUM", Sequelize.col("administrasi")), "total_administrasi"],
@@ -493,7 +493,7 @@ const buildRatesAndRatiosFromAggregates = (
   );
   const markupByMonth = buildMonthMap(pendapatanRows, "total_markup", branchIdFilter);
   const realisasiBungaByMonth = buildMonthMap(
-    pendapatanRows,
+    piutangRows,
     "total_realisasi_bunga",
     branchIdFilter
   );

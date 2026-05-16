@@ -19,10 +19,10 @@ Kedua endpoint saat ini memakai handler yang sama (backward compatibility).
 - Semua nilai dibulatkan 2 desimal.
 
 ## Sumber Data
-- `Piutang`: `tambahan`, `realisasi_pokok`, `saldo_akhir`
+- `Piutang`: `tambahan`, `realisasi_pokok`, `realisasi_bunga`, `saldo_akhir`
 - `Penjualan`: `kontan`, `kredit`, `leasing`, `unit_jualkredit`, `unit_jualleasing`, `unit_jualkontan`
 - `SumberDaya`: `jumlah_karyawan`, `jumlah_unit`
-- `Pendapatan`: `markup_jumlah`, `realisasi_bunga`, `jumlah_pendapatan`, `denda`, `administrasi`
+- `Pendapatan`: `markup_jumlah`, `jumlah_pendapatan`, `denda`, `administrasi`
 - `PendapatanLain`: `jumlah_pendapatan_lain`
 - `Beban`: `gaji`, `operasional`, `penyusutan_aktiva`, `cadangan_piutang`, `cadangan_stock`
 - `SirkulasiPiutang`: `macet_lama`

@@ -1280,6 +1280,7 @@ module.exports = {
             "year",
             "month",
             [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "realisasi_pokok"],
+            [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "realisasi_bunga"],
             [Sequelize.fn("SUM", Sequelize.col("jumlah_angsuran")), "jumlah_angsuran"],
             [Sequelize.fn("SUM", Sequelize.col("tambahan")), "pembiayaan"],
             [Sequelize.fn("SUM", Sequelize.col("saldo_akhir")), "saldo_akhir"],
@@ -1291,6 +1292,7 @@ module.exports = {
         piutangData.forEach((row) => {
           const bucket = ensureCabangRatioMonth(row.year, row.month);
           bucket.realisasi_pokok += parseFloat(row.realisasi_pokok || 0);
+          bucket.realisasi_bunga += parseFloat(row.realisasi_bunga || 0);
           bucket.pembiayaan += parseFloat(row.pembiayaan || 0);
           bucket.total_sirkulasi += parseFloat(row.saldo_akhir || 0);
           const ratioDuaBucket = ensureCabangRatioDuaMonth(row.year, row.month);
@@ -1323,7 +1325,6 @@ module.exports = {
             "year",
             "month",
             [Sequelize.fn("SUM", Sequelize.col("markup_jumlah")), "total_markup"],
-            [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "realisasi_bunga"],
             [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan")), "jumlah_pendapatan"],
             [Sequelize.fn("SUM", Sequelize.col("denda")), "denda"],
             [Sequelize.fn("SUM", Sequelize.col("administrasi")), "administrasi"],
@@ -1334,7 +1335,6 @@ module.exports = {
         pendapatan.forEach((pend) => {
           const bucket = ensureCabangRatioMonth(pend.year, pend.month);
           bucket.total_markup += parseFloat(pend.total_markup || 0);
-          bucket.realisasi_bunga += parseFloat(pend.realisasi_bunga || 0);
           bucket.jumlah_pendapatan += parseFloat(pend.jumlah_pendapatan || 0);
           bucket.denda += parseFloat(pend.denda || 0);
           bucket.administrasi += parseFloat(pend.administrasi || 0);
@@ -1381,7 +1381,7 @@ module.exports = {
         const mergedPendapatanSirkulasi = pendapatan.map((pend) => {
           const matchPiutangSaldo = piutangMap.get(`${pend.year}-${pend.month}`);
 
-          const realisasi_bunga = parseFloat(pend.realisasi_bunga || 0);
+          const realisasi_bunga = parseFloat(matchPiutangSaldo?.realisasi_bunga || 0);
           const total = parseFloat(matchPiutangSaldo?.saldo_akhir || 0);
 
           const rasio_markup =
@@ -1421,7 +1421,8 @@ module.exports = {
 
       const mergedRasioPendapatanBungaPerJmlhPendapatan = pendapatan.map((pend) => {
           
-          const realisasi_bunga = parseFloat(pend.realisasi_bunga || 0);
+          const matchPiutang = piutangMap.get(`${pend.year}-${pend.month}`);
+          const realisasi_bunga = parseFloat(matchPiutang?.realisasi_bunga || 0);
           const jumlah_pendapatan = parseFloat(pend?.jumlah_pendapatan || 0);
 
           const rasio_markup =
@@ -1650,6 +1651,7 @@ module.exports = {
           "year",
           "month",
           [Sequelize.fn("SUM", Sequelize.col("realisasi_pokok")), "realisasi_pokok"],
+          [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "realisasi_bunga"],
           [Sequelize.fn("SUM", Sequelize.col("tambahan")), "pembiayaan"],
           [Sequelize.fn("SUM", Sequelize.col("saldo_akhir")), "saldo_akhir"],
         ],
@@ -1659,6 +1661,7 @@ module.exports = {
       cabangPiutang.forEach((row) => {
         const bucket = ensureCabangRatioMonth(row.year, row.month);
         bucket.realisasi_pokok += parseFloat(row.realisasi_pokok || 0);
+        bucket.realisasi_bunga += parseFloat(row.realisasi_bunga || 0);
         bucket.pembiayaan += parseFloat(row.pembiayaan || 0);
         bucket.total_sirkulasi += parseFloat(row.saldo_akhir || 0);
         const ratioDuaBucket = ensureCabangRatioDuaMonth(row.year, row.month);
@@ -1703,7 +1706,6 @@ module.exports = {
           "year",
           "month",
           [Sequelize.fn("SUM", Sequelize.col("markup_jumlah")), "total_markup"],
-          [Sequelize.fn("SUM", Sequelize.col("realisasi_bunga")), "realisasi_bunga"],
           [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan")), "jumlah_pendapatan"],
           [Sequelize.fn("SUM", Sequelize.col("denda")), "denda"],
           [Sequelize.fn("SUM", Sequelize.col("administrasi")), "administrasi"],
@@ -1714,7 +1716,6 @@ module.exports = {
       cabangPendapatan.forEach((row) => {
         const bucket = ensureCabangRatioMonth(row.year, row.month);
         bucket.total_markup += parseFloat(row.total_markup || 0);
-        bucket.realisasi_bunga += parseFloat(row.realisasi_bunga || 0);
         bucket.jumlah_pendapatan += parseFloat(row.jumlah_pendapatan || 0);
         bucket.denda += parseFloat(row.denda || 0);
         bucket.administrasi += parseFloat(row.administrasi || 0);
