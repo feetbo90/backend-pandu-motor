@@ -176,7 +176,9 @@ const buildAverageRateSeries = (
       ? denominatorMonthValue
       : denominatorTotalCumulative;
     const averageNumerator = numeratorTotal / monthEnd;
-    const averageDenominator = denominatorTotalCumulative / monthEnd;
+    const averageDenominator = denominatorTotalFromCurrentMonth
+      ? denominatorMonthValue
+      : denominatorTotalCumulative / monthEnd;
 
     result.push({
       month_end: monthEnd,
@@ -209,8 +211,7 @@ const buildUnitRateSeries = (selectedMonth, valueMap, unitMap, config) => {
     const totalValue = cumulativeTotal(valueMap, monthEnd);
     const averageValue = totalValue / monthEnd;
     const unitValue = toNumber(unitMap.get(monthEnd) || 0);
-    const totalUnit = cumulativeTotal(unitMap, monthEnd);
-    const averageUnit = totalUnit / monthEnd;
+    const averageUnit = unitValue;
 
     result.push({
       month_end: monthEnd,
