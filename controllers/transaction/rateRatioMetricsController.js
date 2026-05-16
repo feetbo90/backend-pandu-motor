@@ -352,7 +352,6 @@ const fetchRatesAndRatiosAggregates = async (
       attributes: [
         ...dimensionAttrs,
         [Sequelize.fn("SUM", Sequelize.col("markup_jumlah")), "total_markup"],
-        [Sequelize.fn("SUM", Sequelize.col("jumlah_pendapatan")), "total_jumlah_pendapatan"],
         [Sequelize.fn("SUM", Sequelize.col("denda")), "total_denda"],
         [Sequelize.fn("SUM", Sequelize.col("administrasi")), "total_administrasi"],
         [Sequelize.fn("SUM", Sequelize.col("pendapatan_lain")), "total_pendapatan_lain_pendapatan"],
@@ -498,11 +497,6 @@ const buildRatesAndRatiosFromAggregates = (
     "total_realisasi_bunga",
     branchIdFilter
   );
-  const jumlahPendapatanByMonth = buildMonthMap(
-    pendapatanRows,
-    "total_jumlah_pendapatan",
-    branchIdFilter
-  );
   const dendaByMonth = buildMonthMap(pendapatanRows, "total_denda", branchIdFilter);
   const administrasiByMonth = buildMonthMap(
     pendapatanRows,
@@ -514,6 +508,17 @@ const buildRatesAndRatiosFromAggregates = (
     "total_pendapatan_lain_pendapatan",
     branchIdFilter
   );
+  const jumlahPendapatanByMonth = new Map();
+  for (let monthIdx = 1; monthIdx <= selectedMonth; monthIdx += 1) {
+    jumlahPendapatanByMonth.set(
+      monthIdx,
+      toNumber(markupByMonth.get(monthIdx) || 0) +
+        toNumber(realisasiBungaByMonth.get(monthIdx) || 0) +
+        toNumber(dendaByMonth.get(monthIdx) || 0) +
+        toNumber(administrasiByMonth.get(monthIdx) || 0) +
+        toNumber(pendapatanLainPendapatanByMonth.get(monthIdx) || 0)
+    );
+  }
   const pendapatanLainByMonth = buildMonthMap(
     pendapatanLainRows,
     "total_pendapatan_lain",
