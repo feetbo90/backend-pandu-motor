@@ -95,23 +95,68 @@ const applyCenterCabangSums = (metrics, cabangResults) => {
     "rate_sembilan",
     "beban_gabungan_bulan_ini"
   );
+  const cadPenghapusanStockByMonth = sumCabangMetricByMonth(
+    cabangResults,
+    "rate",
+    "rate_sembilan",
+    "cad_penghapusan_stock"
+  );
+  const cadanganStockByMonth = sumCabangMetricByMonth(
+    cabangResults,
+    "rate",
+    "rate_sembilan",
+    "cadangan_stock_bulan_ini"
+  );
+  const jumlahCadanganPiutangByMonth = sumCabangMetricByMonth(
+    cabangResults,
+    "rate",
+    "rate_sembilan",
+    "jumlah_cadangan_piutang"
+  );
+  const jumlahCadanganStockByMonth = sumCabangMetricByMonth(
+    cabangResults,
+    "rate",
+    "rate_sembilan",
+    "jumlah_cadangan_stock"
+  );
   const cadanganByMonth = sumCabangMetricByMonth(
     cabangResults,
     "ratio",
     "ratio_sebelas",
     "cadangan_bulan_ini"
   );
+  const ratioCadanganStockByMonth = sumCabangMetricByMonth(
+    cabangResults,
+    "ratio",
+    "ratio_sebelas",
+    "cadangan_stock_bulan_ini"
+  );
 
   metrics.rate_sembilan = (metrics.rate_sembilan || []).map((item) => {
     const monthEnd = Number(item.month_end);
     const bebanGabunganBulanIni = bebanGabunganByMonth.get(monthEnd) || 0;
+    const cadPenghapusanStock = cadPenghapusanStockByMonth.get(monthEnd) || 0;
+    const cadanganStockBulanIni = cadanganStockByMonth.get(monthEnd) || 0;
+    const jumlahCadanganPiutang = jumlahCadanganPiutangByMonth.get(monthEnd) || 0;
+    const jumlahCadanganStock = jumlahCadanganStockByMonth.get(monthEnd) || 0;
     const totalBebanGabungan = cumulativeTotal(bebanGabunganByMonth, monthEnd);
     const averageBebanGabungan = totalBebanGabungan / monthEnd;
+    const totalCadanganStock = cumulativeTotal(cadanganStockByMonth, monthEnd);
+    const averageCadanganStock = totalCadanganStock / monthEnd;
     const averageSatuanKerja = toNumber(item[`average_satuan_kerja_r${monthEnd}`]);
 
     return {
       ...item,
       beban_gabungan_bulan_ini: roundTwo(bebanGabunganBulanIni),
+      cadangan_stock_bulan_ini: roundTwo(cadanganStockBulanIni),
+      total_cadangan_stock: roundTwo(totalCadanganStock),
+      [`average_cadangan_stock_r${monthEnd}`]: roundTwo(averageCadanganStock),
+      cadangan_stock_per_satuan_kerja: roundTwo(
+        safeDivide(averageCadanganStock, averageSatuanKerja)
+      ),
+      cad_penghapusan_stock: roundTwo(cadPenghapusanStock),
+      jumlah_cadangan_piutang: roundTwo(jumlahCadanganPiutang),
+      jumlah_cadangan_stock: roundTwo(jumlahCadanganStock),
       total_beban_gabungan: roundTwo(totalBebanGabungan),
       [`average_beban_gabungan_r${monthEnd}`]: roundTwo(averageBebanGabungan),
       beban_gabungan_per_satuan_kerja: roundTwo(
@@ -123,13 +168,28 @@ const applyCenterCabangSums = (metrics, cabangResults) => {
   metrics.ratio_sebelas = (metrics.ratio_sebelas || []).map((item) => {
     const monthEnd = Number(item.month_end);
     const cadanganBulanIni = cadanganByMonth.get(monthEnd) || 0;
+    const cadPenghapusanStock = cadPenghapusanStockByMonth.get(monthEnd) || 0;
+    const cadanganStockBulanIni = ratioCadanganStockByMonth.get(monthEnd) || 0;
+    const jumlahCadanganPiutang = jumlahCadanganPiutangByMonth.get(monthEnd) || 0;
+    const jumlahCadanganStock = jumlahCadanganStockByMonth.get(monthEnd) || 0;
     const totalCadangan = cumulativeTotal(cadanganByMonth, monthEnd);
     const averageCadangan = totalCadangan / monthEnd;
+    const totalCadanganStock = cumulativeTotal(ratioCadanganStockByMonth, monthEnd);
+    const averageCadanganStock = totalCadanganStock / monthEnd;
     const jumlahPendapatanBulanIni = toNumber(item.jumlah_pendapatan_bulan_ini);
 
     return {
       ...item,
       cadangan_bulan_ini: roundTwo(cadanganBulanIni),
+      cadangan_stock_bulan_ini: roundTwo(cadanganStockBulanIni),
+      total_cadangan_stock: roundTwo(totalCadanganStock),
+      [`average_cadangan_stock_r${monthEnd}`]: roundTwo(averageCadanganStock),
+      rasio_cadangan_stock_per_pendapatan: roundRatio(
+        safeDivide(cadanganStockBulanIni, jumlahPendapatanBulanIni) * 100
+      ),
+      cad_penghapusan_stock: roundTwo(cadPenghapusanStock),
+      jumlah_cadangan_piutang: roundTwo(jumlahCadanganPiutang),
+      jumlah_cadangan_stock: roundTwo(jumlahCadanganStock),
       total_cadangan: roundTwo(totalCadangan),
       [`average_cadangan_r${monthEnd}`]: roundTwo(averageCadangan),
       rasio_cadangan_per_pendapatan: roundRatio(

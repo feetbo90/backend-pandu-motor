@@ -35,30 +35,21 @@ const buildMonthMap = (rows, fieldName, branchIdFilter) => {
   return map;
 };
 
-const buildMonthMapForBranches = (rows, fieldName, branchIds) => {
-  const branchIdSet = new Set(
-    (Array.isArray(branchIds) ? branchIds : [])
+const buildMonthMapForYear = (
+  rows,
+  fieldName,
+  yearFilter,
+  branchIdFilter,
+  excludedBranchIds
+) => {
+  const excludedBranchIdSet = new Set(
+    (Array.isArray(excludedBranchIds) ? excludedBranchIds : [])
       .map((id) => Number(id))
       .filter((id) => Number.isInteger(id))
   );
   const map = new Map();
-
   rows.forEach((row) => {
-    if (!branchIdSet.has(Number(row.branch_id))) {
-      return;
-    }
-
-    const month = Number(row.month);
-    const currentValue = toNumber(map.get(month) || 0);
-    map.set(month, currentValue + toNumber(row[fieldName]));
-  });
-
-  return map;
-};
-
-const buildMonthMapForYear = (rows, fieldName, yearFilter, branchIdFilter) => {
-  const map = new Map();
-  rows.forEach((row) => {
+    const branchId = Number(row.branch_id);
     if (Number(row.year) !== Number(yearFilter)) {
       return;
     }
@@ -68,11 +59,86 @@ const buildMonthMapForYear = (rows, fieldName, yearFilter, branchIdFilter) => {
     ) {
       return;
     }
+    if (branchIdFilter === undefined && excludedBranchIdSet.has(branchId)) {
+      return;
+    }
 
     const month = Number(row.month);
     const currentValue = toNumber(map.get(month) || 0);
     map.set(month, currentValue + toNumber(row[fieldName]));
   });
+  return map;
+};
+
+const sumMonthValueForYear = (
+  rows,
+  fieldName,
+  yearFilter,
+  monthFilter,
+  branchIdFilter,
+  excludedBranchIds
+) => {
+  const excludedBranchIdSet = new Set(
+    (Array.isArray(excludedBranchIds) ? excludedBranchIds : [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id))
+  );
+
+  return rows.reduce((total, row) => {
+    const branchId = Number(row.branch_id);
+    if (branchIdFilter === undefined && excludedBranchIdSet.has(branchId)) {
+      return total;
+    }
+
+    if (
+      Number(row.year) !== Number(yearFilter) ||
+      Number(row.month) !== Number(monthFilter)
+    ) {
+      return total;
+    }
+    if (
+      branchIdFilter !== undefined &&
+      Number(row.branch_id) !== Number(branchIdFilter)
+    ) {
+      return total;
+    }
+
+    return total + toNumber(row[fieldName]);
+  }, 0);
+};
+
+const buildMonthDeltaFromStartMap = (
+  rows,
+  fieldName,
+  yearFilter,
+  selectedMonth,
+  branchIdFilter,
+  excludedBranchIds
+) => {
+  const currentByMonth = buildMonthMapForYear(
+    rows,
+    fieldName,
+    yearFilter,
+    branchIdFilter,
+    excludedBranchIds
+  );
+  const januaryValue = toNumber(currentByMonth.get(1) || 0);
+  const previousDecemberValue = sumMonthValueForYear(
+    rows,
+    fieldName,
+    Number(yearFilter) - 1,
+    12,
+    branchIdFilter,
+    excludedBranchIds
+  );
+  const map = new Map();
+
+  for (let month = 1; month <= selectedMonth; month += 1) {
+    const currentValue = toNumber(currentByMonth.get(month) || 0);
+    const startValue = month === 1 ? previousDecemberValue : januaryValue;
+    map.set(month, currentValue - startValue);
+  }
+
   return map;
 };
 
@@ -279,6 +345,14 @@ const fetchRatesAndRatiosAggregates = async (
     month: { [Op.between]: [1, selectedMonth] },
     is_active: true,
   };
+  const bebanWhere = {
+    branch_id: branchIds,
+    is_active: true,
+    [Op.or]: [
+      { year: yearInt, month: { [Op.between]: [1, selectedMonth] } },
+      { year: yearInt - 1, month: 12 },
+    ],
+  };
   const sirkulasiWhere = {
     branch_id: branchIds,
     is_active: true,
@@ -290,6 +364,8 @@ const fetchRatesAndRatiosAggregates = async (
 
   const dimensionAttrs = groupByBranch ? ["branch_id", "month"] : ["month"];
   const dimensionGroup = groupByBranch ? ["branch_id", "month"] : ["month"];
+  const bebanDimensionAttrs = ["branch_id", "year", "month"];
+  const bebanDimensionGroup = ["branch_id", "year", "month"];
 
   const [
     piutangRows,
@@ -298,7 +374,6 @@ const fetchRatesAndRatiosAggregates = async (
     pendapatanRows,
     pendapatanLainRows,
     bebanRows,
-    bebanRowsByBranch,
     sirkulasiRows,
     labaRugiRows,
   ] = await Promise.all([
@@ -352,6 +427,7 @@ const fetchRatesAndRatiosAggregates = async (
       attributes: [
         ...dimensionAttrs,
         [Sequelize.fn("SUM", Sequelize.col("markup_jumlah")), "total_markup"],
+        [Sequelize.fn("SUM", Sequelize.col("diskon_bunga")), "total_diskon_bunga"],
         [Sequelize.fn("SUM", Sequelize.col("denda")), "total_denda"],
         [Sequelize.fn("SUM", Sequelize.col("administrasi")), "total_administrasi"],
         [Sequelize.fn("SUM", Sequelize.col("pendapatan_lain")), "total_pendapatan_lain_pendapatan"],
@@ -371,29 +447,17 @@ const fetchRatesAndRatiosAggregates = async (
       raw: true,
     }),
     Beban.findAll({
-      where: baseWhere,
+      where: bebanWhere,
       attributes: [
-        ...dimensionAttrs,
+        ...bebanDimensionAttrs,
         [Sequelize.fn("SUM", Sequelize.col("gaji")), "total_gaji"],
         [Sequelize.fn("SUM", Sequelize.col("operasional")), "total_operasional"],
         [Sequelize.fn("SUM", Sequelize.col("penyusutan_aktiva")), "total_penyusutan"],
         [Sequelize.fn("SUM", Sequelize.col("cadangan_piutang")), "total_cadangan_piutang"],
         [Sequelize.fn("SUM", Sequelize.col("cadangan_stock")), "total_cadangan_stock"],
       ],
-      group: dimensionGroup,
-      order: [["month", "ASC"]],
-      raw: true,
-    }),
-    Beban.findAll({
-      where: baseWhere,
-      attributes: [
-        "branch_id",
-        "month",
-        [Sequelize.fn("SUM", Sequelize.col("cadangan_piutang")), "total_cadangan_piutang"],
-        [Sequelize.fn("SUM", Sequelize.col("cadangan_stock")), "total_cadangan_stock"],
-      ],
-      group: ["branch_id", "month"],
-      order: [["branch_id", "ASC"], ["month", "ASC"]],
+      group: bebanDimensionGroup,
+      order: [["year", "ASC"], ["month", "ASC"]],
       raw: true,
     }),
     SirkulasiPiutang.findAll({
@@ -428,7 +492,6 @@ const fetchRatesAndRatiosAggregates = async (
     pendapatanRows,
     pendapatanLainRows,
     bebanRows,
-    bebanRowsByBranch,
     sirkulasiRows,
     labaRugiRows,
   };
@@ -449,7 +512,6 @@ const buildRatesAndRatiosFromAggregates = (
     pendapatanRows,
     pendapatanLainRows,
     bebanRows,
-    bebanRowsByBranch = [],
     sirkulasiRows,
     labaRugiRows,
   } = aggregates;
@@ -497,6 +559,28 @@ const buildRatesAndRatiosFromAggregates = (
     "total_realisasi_bunga",
     branchIdFilter
   );
+  const diskonBungaByMonth = buildMonthMap(
+    pendapatanRows,
+    "total_diskon_bunga",
+    branchIdFilter
+  );
+  const unitIdsForCadangan = (Array.isArray(increaseBranchIds)
+    ? increaseBranchIds
+    : []
+  )
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id));
+  const unitIdSetForCadangan = new Set(unitIdsForCadangan);
+  const isUnitCadanganScope =
+    options.bebanGabunganScope === "unit" ||
+    (branchIdFilter !== undefined &&
+      unitIdSetForCadangan.has(Number(branchIdFilter)));
+  const pendapatanBungaByMonth = new Map();
+  for (let monthIdx = 1; monthIdx <= selectedMonth; monthIdx += 1) {
+    const realisasiBunga = toNumber(realisasiBungaByMonth.get(monthIdx) || 0);
+    const diskonBunga = toNumber(diskonBungaByMonth.get(monthIdx) || 0);
+    pendapatanBungaByMonth.set(monthIdx, realisasiBunga - diskonBunga);
+  }
   const dendaByMonth = buildMonthMap(pendapatanRows, "total_denda", branchIdFilter);
   const administrasiByMonth = buildMonthMap(
     pendapatanRows,
@@ -513,7 +597,7 @@ const buildRatesAndRatiosFromAggregates = (
     jumlahPendapatanByMonth.set(
       monthIdx,
       toNumber(markupByMonth.get(monthIdx) || 0) +
-        toNumber(realisasiBungaByMonth.get(monthIdx) || 0) +
+        toNumber(pendapatanBungaByMonth.get(monthIdx) || 0) +
         toNumber(dendaByMonth.get(monthIdx) || 0) +
         toNumber(administrasiByMonth.get(monthIdx) || 0) +
         toNumber(pendapatanLainPendapatanByMonth.get(monthIdx) || 0)
@@ -524,57 +608,56 @@ const buildRatesAndRatiosFromAggregates = (
     "total_pendapatan_lain",
     branchIdFilter
   );
-  const gajiByMonth = buildMonthMap(bebanRows, "total_gaji", branchIdFilter);
-  const operasionalByMonth = buildMonthMap(
+  const gajiByMonth = buildMonthMapForYear(
+    bebanRows,
+    "total_gaji",
+    yearInt,
+    branchIdFilter
+  );
+  const operasionalByMonth = buildMonthMapForYear(
     bebanRows,
     "total_operasional",
+    yearInt,
     branchIdFilter
   );
-  const penyusutanByMonth = buildMonthMap(
+  const penyusutanByMonth = buildMonthMapForYear(
     bebanRows,
     "total_penyusutan",
+    yearInt,
     branchIdFilter
   );
-  const cadanganPiutangByMonth = buildMonthMap(
+  const excludedUnitIdsForCadangan = isUnitCadanganScope
+    ? []
+    : unitIdsForCadangan;
+  const cadanganPiutangByMonth = buildMonthMapForYear(
     bebanRows,
     "total_cadangan_piutang",
-    branchIdFilter
+    yearInt,
+    branchIdFilter,
+    excludedUnitIdsForCadangan
   );
-  const cadanganStockByMonth = buildMonthMap(
+  const cadanganStockByMonth = buildMonthMapForYear(
     bebanRows,
     "total_cadangan_stock",
-    branchIdFilter
+    yearInt,
+    branchIdFilter,
+    excludedUnitIdsForCadangan
   );
-  const unitIdsForBebanGabungan = (Array.isArray(increaseBranchIds)
-    ? increaseBranchIds
-    : []
-  )
-    .map((id) => Number(id))
-    .filter((id) => Number.isInteger(id));
-  const unitIdSetForBebanGabungan = new Set(unitIdsForBebanGabungan);
-  const isUnitBebanGabungan =
-    options.bebanGabunganScope === "unit" ||
-    (branchIdFilter !== undefined &&
-      unitIdSetForBebanGabungan.has(Number(branchIdFilter)));
-  const branchIdsWithBeban = [
-    ...new Set(
-      bebanRowsByBranch
-        .map((row) => Number(row.branch_id))
-        .filter((id) => Number.isInteger(id))
-    ),
-  ];
-  const nonUnitBranchIdsForBebanGabungan = branchIdsWithBeban.filter(
-    (id) => !unitIdSetForBebanGabungan.has(id)
-  );
-  const unitCadanganPiutangByMonth = buildMonthMapForBranches(
-    bebanRowsByBranch,
+  const jumlahCadanganPiutangByMonth = buildMonthDeltaFromStartMap(
+    bebanRows,
     "total_cadangan_piutang",
-    unitIdsForBebanGabungan
+    yearInt,
+    selectedMonth,
+    branchIdFilter,
+    excludedUnitIdsForCadangan
   );
-  const nonUnitCadanganStockByMonth = buildMonthMapForBranches(
-    bebanRowsByBranch,
+  const jumlahCadanganStockByMonth = buildMonthDeltaFromStartMap(
+    bebanRows,
     "total_cadangan_stock",
-    nonUnitBranchIdsForBebanGabungan
+    yearInt,
+    selectedMonth,
+    branchIdFilter,
+    excludedUnitIdsForCadangan
   );
   const macetLamaByMonth = buildMonthMapForYear(
     sirkulasiRows,
@@ -597,13 +680,9 @@ const buildRatesAndRatiosFromAggregates = (
 
   const bebanGabunganByMonth = new Map();
   for (let monthIdx = 1; monthIdx <= selectedMonth; monthIdx += 1) {
-    const cadPiutang = isUnitBebanGabungan
-      ? cadanganPiutangByMonth.get(monthIdx) || 0
-      : unitCadanganPiutangByMonth.get(monthIdx) || 0;
-    const cadStock = nonUnitCadanganStockByMonth.get(monthIdx) || 0;
     bebanGabunganByMonth.set(
       monthIdx,
-      isUnitBebanGabungan ? cadPiutang : cadPiutang + cadStock
+      cadanganPiutangByMonth.get(monthIdx) || 0
     );
   }
 
@@ -865,7 +944,30 @@ const buildRatesAndRatiosFromAggregates = (
       unitField: "total_satuan_kerja",
       ratioField: "beban_gabungan_per_satuan_kerja",
     }
-  );
+  ).map((item) => {
+    const monthEnd = Number(item.month_end);
+    const cadanganStockBulanIni = toNumber(cadanganStockByMonth.get(monthEnd) || 0);
+    const totalCadanganStock = cumulativeTotal(cadanganStockByMonth, monthEnd);
+    const averageCadanganStock = totalCadanganStock / monthEnd;
+    const averageSatuanKerja = toNumber(item[`average_satuan_kerja_r${monthEnd}`]);
+
+    return {
+      ...item,
+      cadangan_stock_bulan_ini: roundTwo(cadanganStockBulanIni),
+      total_cadangan_stock: roundTwo(totalCadanganStock),
+      [`average_cadangan_stock_r${monthEnd}`]: roundTwo(averageCadanganStock),
+      cadangan_stock_per_satuan_kerja: roundTwo(
+        safeDivide(averageCadanganStock, averageSatuanKerja)
+      ),
+      cad_penghapusan_stock: roundTwo(cadanganStockByMonth.get(monthEnd) || 0),
+      jumlah_cadangan_piutang: roundTwo(
+        jumlahCadanganPiutangByMonth.get(monthEnd) || 0
+      ),
+      jumlah_cadangan_stock: roundTwo(
+        jumlahCadanganStockByMonth.get(monthEnd) || 0
+      ),
+    };
+  });
 
   const rate_sepuluh = buildUnitRateSeries(
     selectedMonth,
@@ -1010,9 +1112,9 @@ const buildRatesAndRatiosFromAggregates = (
 
   const ratio_empat = [];
   for (let monthEnd = 1; monthEnd <= selectedMonth; monthEnd += 1) {
-    const realisasiBungaMonth = toNumber(realisasiBungaByMonth.get(monthEnd) || 0);
+    const realisasiBungaMonth = toNumber(pendapatanBungaByMonth.get(monthEnd) || 0);
     const saldoAkhirMonth = toNumber(saldoAkhirByMonth.get(monthEnd) || 0);
-    const realisasiBungaTotal = cumulativeTotal(realisasiBungaByMonth, monthEnd);
+    const realisasiBungaTotal = cumulativeTotal(pendapatanBungaByMonth, monthEnd);
     const saldoAkhirTotal = cumulativeTotal(saldoAkhirByMonth, monthEnd);
     const averageRealisasiBunga = realisasiBungaTotal / monthEnd;
     const averageSaldoAkhir = saldoAkhirTotal / monthEnd;
@@ -1059,7 +1161,7 @@ const buildRatesAndRatiosFromAggregates = (
 
   let ratio_enam = buildAveragePercentSeries(
     selectedMonth,
-    realisasiBungaByMonth,
+    pendapatanBungaByMonth,
     jumlahPendapatanByMonth,
     {
       numeratorMonthField: "realisasi_bunga_bulan_ini",
@@ -1218,11 +1320,28 @@ const buildRatesAndRatiosFromAggregates = (
     }
   );
   ratio_sebelas = ratio_sebelas.map((item) => {
+    const monthEnd = Number(item.month_end);
     const cadanganBulanIni = toNumber(item.cadangan_bulan_ini || 0);
+    const cadanganStockBulanIni = toNumber(cadanganStockByMonth.get(monthEnd) || 0);
+    const totalCadanganStock = cumulativeTotal(cadanganStockByMonth, monthEnd);
+    const averageCadanganStock = totalCadanganStock / monthEnd;
     const jumlahPendapatanBulanIni = toNumber(item.jumlah_pendapatan_bulan_ini || 0);
 
     return {
       ...item,
+      cadangan_stock_bulan_ini: roundTwo(cadanganStockBulanIni),
+      total_cadangan_stock: roundTwo(totalCadanganStock),
+      [`average_cadangan_stock_r${monthEnd}`]: roundTwo(averageCadanganStock),
+      rasio_cadangan_stock_per_pendapatan: roundRatio(
+        safeDivide(cadanganStockBulanIni, jumlahPendapatanBulanIni) * 100
+      ),
+      cad_penghapusan_stock: roundTwo(cadanganStockByMonth.get(monthEnd) || 0),
+      jumlah_cadangan_piutang: roundTwo(
+        jumlahCadanganPiutangByMonth.get(monthEnd) || 0
+      ),
+      jumlah_cadangan_stock: roundTwo(
+        jumlahCadanganStockByMonth.get(monthEnd) || 0
+      ),
       rasio_cadangan_per_pendapatan: roundRatio(
         safeDivide(cadanganBulanIni, jumlahPendapatanBulanIni) * 100
       ),
