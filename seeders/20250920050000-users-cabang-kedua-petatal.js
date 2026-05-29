@@ -10,13 +10,13 @@ module.exports = {
     const [cabangKedua] = await queryInterface.sequelize.query(
       "SELECT id FROM entities WHERE name IN (:names) AND entity_type = 'CABANG' LIMIT 1",
       {
-        replacements: { names: ["Cabang 2", "Cabang Kedua"] },
+        replacements: { names: ["Pandu II", "Cabang 2", "Cabang Kedua"] },
         type: Sequelize.QueryTypes.SELECT
       }
     );
 
     if (!cabangKedua) {
-      throw new Error("Entity Cabang Kedua tidak ditemukan");
+      throw new Error("Entity Pandu II tidak ditemukan");
     }
 
     const [petatal] = await queryInterface.sequelize.query(
@@ -58,7 +58,7 @@ module.exports = {
     };
 
     await ensureUser(
-      "Manager Cabang 2",
+      "Manager Pandu II",
       "manager.kedua@company.com",
       "CABANG",
       cabangKedua.id

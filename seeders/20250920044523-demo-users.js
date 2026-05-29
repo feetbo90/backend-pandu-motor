@@ -44,7 +44,7 @@ module.exports = {
       );
     };
 
-    const cabangSatu = await getEntity(["Cabang 1", "Cabang Utama"], "CABANG");
+    const cabangSatu = await getEntity(["Pandu I", "Cabang 1", "Cabang Utama"], "CABANG");
     const kisaran = await getEntity(["Kisaran"], "UNIT");
     const aekKanopan = await getEntity(["Aek Kanopan"], "UNIT");
 
@@ -52,7 +52,7 @@ module.exports = {
 
     if (cabangSatu) {
       await ensureUser(
-        "Manager Cabang 1",
+        "Manager Pandu I",
         "manager.utama@company.com",
         "CABANG",
         cabangSatu.id

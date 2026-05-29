@@ -98,29 +98,29 @@ module.exports = {
       }
     };
 
-    const cabangSatu = await ensureCabang("Cabang 1", ["Pandu I"]);
-    const cabangDua = await ensureCabang("Cabang 2", ["Pandu II"]);
+    const cabangSatu = await ensureCabang("Pandu I", ["Cabang 1", "Cabang Utama"]);
+    const cabangDua = await ensureCabang("Pandu II", ["Cabang 2", "Cabang Kedua"]);
 
     await ensureUser(
-      "Manager Cabang 1",
+      "Manager Pandu I",
       "manager.cabang1@company.com",
       "CABANG",
       cabangSatu.id
     );
     await ensureUser(
-      "Manager Cabang 2",
+      "Manager Pandu II",
       "manager.cabang2@company.com",
       "CABANG",
       cabangDua.id
     );
     await ensureUser(
-      "Manager Cabang 1",
+      "Manager Pandu I",
       "manager.utama@company.com",
       "CABANG",
       cabangSatu.id
     );
     await ensureUser(
-      "Manager Cabang 2",
+      "Manager Pandu II",
       "manager.kedua@company.com",
       "CABANG",
       cabangDua.id
