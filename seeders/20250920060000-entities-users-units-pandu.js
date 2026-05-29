@@ -98,8 +98,8 @@ module.exports = {
       }
     };
 
-    const cabangSatu = await ensureCabang("Cabang 1", ["Cabang Utama"]);
-    const cabangDua = await ensureCabang("Cabang 2", ["Cabang Kedua"]);
+    const cabangSatu = await ensureCabang("Cabang 1", ["Pandu I"]);
+    const cabangDua = await ensureCabang("Cabang 2", ["Pandu II"]);
 
     await ensureUser(
       "Manager Cabang 1",

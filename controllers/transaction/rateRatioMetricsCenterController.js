@@ -295,7 +295,7 @@ const handleGetRatesRatiosCenter = async (req, res) => {
       {
         success: true,
         pusat_name: "Pusat",
-        pusat_type: "PUSAT",
+        pusat_type: "Pandu",
         year: yearInt,
         selected_month: selectedMonth,
         included_pusat_ids: centerBranchIds,

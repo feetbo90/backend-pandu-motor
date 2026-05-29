@@ -8,7 +8,7 @@ module.exports = {
       "entities",
       [
         {
-          name: "Cabang Utama",
+          name: "Pandu I",
           entity_type: "CABANG",
           parent_id: null,
           created_at: new Date(),
@@ -17,7 +17,7 @@ module.exports = {
           is_active: true
         },
         {
-          name: "Cabang Kedua",
+          name: "Pandu II",
           entity_type: "CABANG",
           parent_id: null,
           created_at: new Date(),
