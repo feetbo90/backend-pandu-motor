@@ -191,14 +191,9 @@ module.exports = {
       const data = await Beban.findByPk(req.params.id);
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
-      await data.update({
-        is_active: false,
-        version: Number(data.version) + 1,
-        change_id: uuidv4(),
-        updated_at: new Date()
-      });
+      await data.destroy();
 
-      res.json({ message: "Data beban berhasil dihapus (soft delete)" });
+      res.json({ message: "Data beban berhasil dihapus" });
     } catch (err) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }

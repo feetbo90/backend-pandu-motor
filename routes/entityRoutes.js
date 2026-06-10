@@ -102,7 +102,7 @@ const authMiddleware = require("../middlewares/authMiddleware");
  *         description: Server error
  *
  *   delete:
- *     summary: Soft delete entity by ID
+ *     summary: Delete entity by ID
  *     tags:
  *       - Entities
  *     parameters:
@@ -113,7 +113,7 @@ const authMiddleware = require("../middlewares/authMiddleware");
  *           type: integer
  *     responses:
  *       200:
- *         description: Entity berhasil di-nonaktifkan
+ *         description: Entity berhasil dihapus
  *       404:
  *         description: Entity tidak ditemukan
  *       500:

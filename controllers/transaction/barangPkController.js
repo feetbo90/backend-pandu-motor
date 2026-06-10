@@ -150,12 +150,7 @@ module.exports = {
       const data = await BarangPk.findByPk(req.params.id);
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
-      await data.update({
-        is_active: false,
-        version: Number(data.version) + 1,
-        change_id: uuidv4(),
-        updated_at: new Date()
-      });
+      await data.destroy();
 
       res.json({ message: "Data Barang berhasil dihapus" });
     } catch (err) {

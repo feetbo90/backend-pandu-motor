@@ -152,12 +152,7 @@ module.exports = {
       const data = await SirkulasiPiutang.findByPk(req.params.id);
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
-      await data.update({
-        is_active: false,
-        version: Number(data.version) + 1,
-        change_id: uuidv4(),
-        updated_at: new Date()
-      });
+      await data.destroy();
 
       res.json({ message: "Data Sirkulasi Piutang berhasil dihapus" });
     } catch (err) {

@@ -75,19 +75,15 @@ module.exports = {
     }
   },
 
-  // DELETE /api/periods/:id (soft delete)
+  // DELETE /api/periods/:id
   async remove(req, res) {
     try {
       const period = await Period.findByPk(req.params.id);
       if (!period) return res.status(404).json({ message: "Period tidak ditemukan" });
 
-      await period.update({
-        is_active: false,
-        updated_at: new Date(),
-        version: period.version + 1
-      });
+      await period.destroy();
 
-      res.json({ message: "Period berhasil dinonaktifkan" });
+      res.json({ message: "Period berhasil dihapus" });
     } catch (err) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }

@@ -75,15 +75,15 @@ module.exports = {
     }
   },
 
-  // DELETE /api/entities/:id (soft delete dengan is_active = false)
+  // DELETE /api/entities/:id
   async remove(req, res) {
     try {
-      const entity = await Entity.findByPk(req.params.id);
+      const entity = await Entities.findByPk(req.params.id);
       if (!entity) return res.status(404).json({ message: "Entity tidak ditemukan" });
 
-      await entity.update({ is_active: false, updated_at: new Date(), version: entity.version + 1 });
+      await entity.destroy();
 
-      res.json({ message: "Entity berhasil di-nonaktifkan" });
+      res.json({ message: "Entity berhasil dihapus" });
     } catch (err) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }

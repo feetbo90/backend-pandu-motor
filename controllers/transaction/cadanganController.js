@@ -142,7 +142,7 @@ module.exports = {
 
       await data.destroy();
 
-      res.json({ message: "Data cadangan berhasil dihapus (soft delete)" });
+      res.json({ message: "Data cadangan berhasil dihapus" });
     } catch (err) {
       res.status(500).json({ message: "Terjadi kesalahan", error: err.message });
     }

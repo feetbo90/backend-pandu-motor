@@ -76,12 +76,7 @@ async create(req, res) {
       const data = await Penjualan.findByPk(req.params.id);
       if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
 
-      await data.update({
-        is_active: false,
-        version: data.version + 1,
-        change_id: uuidv4(),
-        updated_at: new Date()
-      });
+      await data.destroy();
 
       res.json({ message: "Data penjualan berhasil dihapus" });
     } catch (err) {
