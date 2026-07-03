@@ -6,6 +6,7 @@ const { sequelize } = require("./models");
 const PORT = process.env.PORT || 3000;
 // routes
 const authRoutes = require("./routes/authRoutes");
+const userRoutes = require("./routes/userRoutes");
 const entityRoutes = require("./routes/entityRoutes");
 const entitiesRoutes = require("./routes/entitiesRoutes");
 const periodRoutes = require("./routes/periodRoutes");
@@ -58,6 +59,7 @@ app.get("/", (req, res) => {
 
 // register routes
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/entities", entityRoutes);
 app.use("/api/entity", entitiesRoutes);
 app.use("/api/periods", periodRoutes);
